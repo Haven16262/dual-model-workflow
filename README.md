@@ -73,8 +73,10 @@ These two phrases are the switch signals — the model reads `context.md` on rec
 
 **Slash command alternative:** the same two switch signals are also wired up as slash commands (defined in `templates/.claude/commands/`):
 
-- In the Overseer terminal: `/from-worker` ≡ *"The Worker changed something, check the context file"*
-- In the Worker terminal: `/from-overseer` ≡ *"The Overseer changed something, check the context file"*
+- In the Overseer terminal: `/as-overseer` ≡ *"The Worker changed something, check the context file"* (i.e. "I'm now stepping in as Overseer")
+- In the Worker terminal: `/as-worker` ≡ *"The Overseer changed something, check the context file"* (i.e. "I'm now stepping in as Worker")
+
+(The `as-` naming is mnemonic: you state the role you're about to take. It's also faster to type than `from-` since `a` and `s` are adjacent on QWERTY.)
 
 Same semantics, less typing. Hand-typed phrases still work.
 
@@ -213,8 +215,10 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 **Slash 命令简化:** 两句切换话语都有等价的 slash 命令(定义在 `templates/.claude/commands/`):
 
-- 全局者终端:`/from-worker` ≡ 「工作者修改了内容,查看 context 文件」
-- 工作者终端:`/from-overseer` ≡ 「全局者修改了内容,查看 context 文件」
+- 全局者终端:`/as-overseer` ≡ 「工作者修改了内容,查看 context 文件」(意:我现在接手全局者角色)
+- 工作者终端:`/as-worker` ≡ 「全局者修改了内容,查看 context 文件」(意:我现在接手工作者角色)
+
+(`as-` 而不是 `from-` 有两个理由:语义上"我现在是什么角色"比"来自谁"更直觉;键盘上 a/s 相邻,比 `from-` 起手 f→r 跨距小,输入更顺。)
 
 语义相同,少打字。手打话语仍然有效。
 

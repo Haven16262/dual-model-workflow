@@ -36,7 +36,7 @@ _cc_workflow_prompt() {
       echo "  ---------------------------------------------------------------------"
       echo "  To switch: in the Worker terminal, type:"
       echo "  'The Overseer changed something, check the context file.'"
-      echo "  (or use the /from-overseer slash command)"
+      echo "  (or use the /as-worker slash command)"
       echo ""
       ;;
     2)
@@ -48,7 +48,7 @@ _cc_workflow_prompt() {
       echo "  ---------------------------------------------------------------------"
       echo "  To switch: in the Overseer terminal, type:"
       echo "  'The Worker changed something, check the context file.'"
-      echo "  (or use the /from-worker slash command)"
+      echo "  (or use the /as-overseer slash command)"
       echo ""
       ;;
   esac
@@ -102,7 +102,7 @@ cc-init() {
   echo "  CLAUDE.md            — tells the model to read the workflow on startup"
   echo "  context.md           — shared context between the two models"
   if [ -d .claude/commands ]; then
-    echo "  .claude/commands/    — role-switch slash commands (/from-worker, /from-overseer)"
+    echo "  .claude/commands/    — role-switch slash commands (/as-overseer, /as-worker)"
   fi
   if [ -d .claude/agents ]; then
     echo "  .claude/agents/      — critic subagent (security-relevant review, runs on Haiku)"
