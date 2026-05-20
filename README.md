@@ -111,6 +111,27 @@ So the countermeasure is not another format change — it's Overseer behavior: *
 
 See [`templates/WORKFLOW.md`](templates/WORKFLOW.md) for the authoritative, copy-paste formats (Overseer write, Worker write, Worker→Overseer handoff). Once the format is consistent, either side opening a new session can reconstruct the full decision chain from the history log — no more "no idea why we did it this way last time."
 
+### Related work
+
+Splitting AI coding work across a stronger "planner / architect" model and a weaker / cheaper "executor" model is a well-established pattern. This repo is one specific flavor of it, not a novel design. Prior art worth knowing about:
+
+**Established frameworks:**
+- [aider](https://github.com/Aider-AI/aider) — `--architect` mode pairs a planner model with an editor model in a single CLI. The most direct conceptual parent of this repo's idea.
+- [MetaGPT](https://github.com/geekan/MetaGPT), [AutoGen](https://github.com/microsoft/autogen), [CrewAI](https://github.com/crewAIInc/crewAI), [LangGraph](https://github.com/langchain-ai/langgraph) — multi-agent frameworks with role-based orchestration; planner / executor is one of the canonical role splits they support.
+- [cline](https://github.com/cline/cline), [Roo Code](https://github.com/RooVetGit/Roo-Cline) — IDE-embedded agents with plan / act mode separation.
+
+**Directly overlapping smaller repos (all created shortly before this one):**
+- [chewwwwwwwwww/claude-codex-hybrid-kit](https://github.com/chewwwwwwwwww/claude-codex-hybrid-kit) — structurally the closest: two Claude Code sessions sharing a Markdown file (`issue-N.md`) as the bus, with explicit slash commands (`/scope → /architect → /build → /review`). Uses Codex instead of DeepSeek and formalizes the flow as a state machine.
+- [SelimCakil/claude-deepseek-architect](https://github.com/SelimCakil/claude-deepseek-architect) — same model pairing (Claude architect + DeepSeek developer) but uses MCP-based programmatic dispatch (houtini-lm) instead of human-mediated switching.
+- [evan-e2438927/sdlc-workflow](https://github.com/evan-e2438927/sdlc-workflow) — a heavier SDLC-flavored variant: Claude + Codex with formal review gates, Telegram notifications, full PR automation.
+
+**Where this repo differs (small, but real):**
+- **Human-mediated switching with explicit trigger phrases**, rather than programmatic dispatch or a hidden state machine. Slower, but transparent and dependency-free — works with just Claude Code itself.
+- **The four-item "Key Decisions" checklist** that the Worker must fill on every delivery, separating fact-reporting from risk-judgment.
+- **An honest caveat about why the checklist doesn't auto-work** — the Worker model may reflexively answer "none" and the Overseer must spot-check diffs to calibrate trust. None of the comparable repos surface this limitation in their docs.
+
+If you want a more automated or heavier-weight solution, prefer aider's architect mode or one of the multi-agent frameworks above. This repo is for the case where you want the dual-model split with no extra dependencies beyond Claude Code itself.
+
 ### License
 
 MIT — see [LICENSE](LICENSE).
@@ -221,6 +242,27 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md
 ### context.md 写入格式
 
 权威的可复制格式(全局者写入、工作者写入、工作者→全局者交接)见 [`templates/WORKFLOW.md`](templates/WORKFLOW.md)。格式统一后,任何一方开启新 session 都能通过历史记录还原完整决策链,不会出现「不知道上次为什么这么做」。
+
+### 相关工作
+
+把 AI 编码工作拆给一个强"规划者 / 架构师"模型 + 一个弱 / 更便宜的"执行者"模型,这个模式有大量先例。本仓库只是其中一种特定实现,不是新颖设计。值得知道的 prior art:
+
+**成熟框架:**
+- [aider](https://github.com/Aider-AI/aider) —— `--architect` 模式在单一 CLI 内把规划者模型和编辑者模型配对。是本仓库思路最直接的概念父本。
+- [MetaGPT](https://github.com/geekan/MetaGPT)、[AutoGen](https://github.com/microsoft/autogen)、[CrewAI](https://github.com/crewAIInc/crewAI)、[LangGraph](https://github.com/langchain-ai/langgraph) —— 多 agent 框架,角色化编排,规划者 / 执行者是它们支持的经典分工之一。
+- [cline](https://github.com/cline/cline)、[Roo Code](https://github.com/RooVetGit/Roo-Cline) —— IDE 内嵌的 agent,带 plan / act 模式分离。
+
+**直接重叠的小仓库(均在本仓库之前不久创建):**
+- [chewwwwwwwwww/claude-codex-hybrid-kit](https://github.com/chewwwwwwwwww/claude-codex-hybrid-kit) —— 结构上最接近:两个 Claude Code session 共享一个 Markdown 文件(`issue-N.md`)作总线,带显式 slash commands(`/scope → /architect → /build → /review`)。用 Codex 而非 DeepSeek,并把流程形式化成状态机。
+- [SelimCakil/claude-deepseek-architect](https://github.com/SelimCakil/claude-deepseek-architect) —— 模型对完全一致(Claude 架构师 + DeepSeek 开发者),但用 MCP 程序化派发(houtini-lm),不是人介入切换。
+- [evan-e2438927/sdlc-workflow](https://github.com/evan-e2438927/sdlc-workflow) —— 偏重 SDLC 流程的变体:Claude + Codex,带形式化审查门禁、Telegram 通知、PR 自动化。
+
+**本仓库的差异点(小,但真实):**
+- **人介入切换 + 显式触发话语**,而非程序化派发或隐藏状态机。代价是慢,好处是透明、零额外依赖——只要有 Claude Code 就能跑。
+- **四项「关键决策点」清单**,工作者每次交付强制填,事实上报与风险判断分离。
+- **关于清单为何不自动生效的诚实告诫**——工作者模型可能反射性填「无」,全局者需要抽查 diff 校准信任度。上述对应仓库的文档里都没有这条。
+
+如果你想要更自动化 / 更重型的方案,优先选 aider 的 architect 模式或上述多 agent 框架。本仓库面向的场景是:你想要双模型分工,但不想引入 Claude Code 之外的任何额外依赖。
 
 ### 许可证
 
