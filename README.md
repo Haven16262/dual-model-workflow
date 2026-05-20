@@ -39,7 +39,8 @@ cd dual-model-workflow
 
 # 2. Make templates discoverable (default location)
 mkdir -p ~/.dual-model/templates
-cp templates/* ~/.dual-model/templates/
+cp -r templates/. ~/.dual-model/templates/
+#   (the trailing dot copies hidden entries like .claude/ too)
 #   (or: export DUAL_MODEL_TEMPLATES=/abs/path/to/dual-model-workflow/templates)
 
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
@@ -51,7 +52,7 @@ source ~/.bashrc
 
 # 5. In any project directory, initialize the workflow
 cd /path/to/your/project
-cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md
+cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
 Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each prints a role prompt and reads `WORKFLOW.md` / `context.md` to restore state.
@@ -69,6 +70,13 @@ The Overseer reads it, gives a decision, writes to `context.md`, and says *"deci
 > *The Overseer changed something, check the context file.*
 
 These two phrases are the switch signals — the model reads `context.md` on receiving them, so you never have to re-explain the background.
+
+**Slash command alternative:** the same two switch signals are also wired up as slash commands (defined in `templates/.claude/commands/`):
+
+- In the Overseer terminal: `/from-worker` ≡ *"The Worker changed something, check the context file"*
+- In the Worker terminal: `/from-overseer` ≡ *"The Overseer changed something, check the context file"*
+
+Same semantics, less typing. Hand-typed phrases still work.
 
 ### Trigger conditions (Worker → Overseer)
 
@@ -99,7 +107,7 @@ The fix is not to make the Overseer read all the code (that violates its "don't 
 
 This deliberately separates **fact reporting** from **risk judgment**: the Worker only answers factually ("did you change an interface", "did you touch these security-sensitive surfaces") — answerable even without understanding the risk; the Overseer judges the risk. "Unresolved doubts" is the single highest-value line — it catches the blind spot where **the Worker isn't blocked, so it never triggers a switch, but it's actually unsure**. That case used to fall straight through the net.
 
-A paired hard rule for the Overseer: **whenever the security item is non-empty, it must actually read that code, not just the summary.** This is the escape hatch for security-relevant changes — lightweight self-report by default, fall back to real review the moment a security surface is touched.
+A paired hard rule for the Overseer: **whenever the security item is non-empty, it must invoke the `critic` subagent** (defined in [`templates/.claude/agents/critic.md`](templates/.claude/agents/critic.md), runs on Haiku) to read the relevant files and return a structured audit, rather than relying on the summary. This operationalizes the "must read code" rule without making the Overseer itself read large numbers of files — the critic does the reading and reports back; the Overseer judges from the report.
 
 ### Why this patch doesn't auto-work (the honest caveat)
 
@@ -171,7 +179,8 @@ cd dual-model-workflow
 
 # 2. 把模板放到默认位置
 mkdir -p ~/.dual-model/templates
-cp templates/* ~/.dual-model/templates/
+cp -r templates/. ~/.dual-model/templates/
+#   (尾部的 . 同时拷贝 .claude/ 等隐藏目录)
 #   (或:export DUAL_MODEL_TEMPLATES=/绝对路径/dual-model-workflow/templates)
 
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
@@ -183,7 +192,7 @@ source ~/.bashrc
 
 # 5. 在任意项目目录初始化工作流
 cd /你的/项目
-cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md
+cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
 然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会打印角色提示并读 `WORKFLOW.md` / `context.md` 恢复状态。
@@ -201,6 +210,13 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md
 > 「全局者修改了内容,查看 context 文件」
 
 这两句话是切换信号,模型收到后会主动读 `context.md`,不需要你重新解释背景。
+
+**Slash 命令简化:** 两句切换话语都有等价的 slash 命令(定义在 `templates/.claude/commands/`):
+
+- 全局者终端:`/from-worker` ≡ 「工作者修改了内容,查看 context 文件」
+- 工作者终端:`/from-overseer` ≡ 「全局者修改了内容,查看 context 文件」
+
+语义相同,少打字。手打话语仍然有效。
 
 ### 触发切换的条件(工作者 → 全局者)
 
@@ -231,7 +247,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md
 
 这里有意把**事实上报**和**风险判断**分开:工作者只需如实回答「改没改接口」「碰没碰这些安全敏感面」—— 即使不懂风险也答得出;风险判断交给全局者。其中「未解决的疑虑」是单条价值最高的一项,专门抓那种**工作者没卡住、所以从不触发切换、但其实心里没底**的盲区 —— 这种情况以前完全漏在网外。
 
-配套给全局者加一条硬规则:**只要安全项非空,就必须实际去读那段代码,不能只看摘要。** 这是给安全相关改动留的逃生口 —— 默认走轻量自报,一旦触到安全面就回退到真审查。
+配套给全局者加一条硬规则:**只要安全项非空,就必须 invoke `critic` 子代理**(定义在 [`templates/.claude/agents/critic.md`](templates/.claude/agents/critic.md),用 Haiku 跑)去读相关文件并返回结构化审查报告,不能只看摘要。这把"必须读代码"规则操作化了 —— 全局者自己仍不读大量文件,由 critic 子代理代读并出报告,全局者凭报告判断。
 
 ### 这个补丁不会自动生效(诚实的告诫)
 

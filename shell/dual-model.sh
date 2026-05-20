@@ -36,6 +36,7 @@ _cc_workflow_prompt() {
       echo "  ---------------------------------------------------------------------"
       echo "  To switch: in the Worker terminal, type:"
       echo "  'The Overseer changed something, check the context file.'"
+      echo "  (or use the /from-overseer slash command)"
       echo ""
       ;;
     2)
@@ -47,6 +48,7 @@ _cc_workflow_prompt() {
       echo "  ---------------------------------------------------------------------"
       echo "  To switch: in the Overseer terminal, type:"
       echo "  'The Worker changed something, check the context file.'"
+      echo "  (or use the /from-worker slash command)"
       echo ""
       ;;
   esac
@@ -90,8 +92,19 @@ cc-init() {
   cp "$DUAL_MODEL_TEMPLATES/WORKFLOW.md" ./
   cp "$DUAL_MODEL_TEMPLATES/CLAUDE.md" ./
   cp "$DUAL_MODEL_TEMPLATES/context.md" ./
+  if [ -d "$DUAL_MODEL_TEMPLATES/.claude" ]; then
+    mkdir -p .claude/commands .claude/agents
+    cp -n "$DUAL_MODEL_TEMPLATES/.claude/commands/"*.md .claude/commands/ 2>/dev/null
+    cp -n "$DUAL_MODEL_TEMPLATES/.claude/agents/"*.md .claude/agents/ 2>/dev/null
+  fi
   echo "  Dual-model workflow initialized:"
-  echo "  WORKFLOW.md  — role definitions and switch rules"
-  echo "  CLAUDE.md    — tells the model to read the workflow on startup"
-  echo "  context.md   — shared context between the two models"
+  echo "  WORKFLOW.md          — role definitions and switch rules"
+  echo "  CLAUDE.md            — tells the model to read the workflow on startup"
+  echo "  context.md           — shared context between the two models"
+  if [ -d .claude/commands ]; then
+    echo "  .claude/commands/    — role-switch slash commands (/from-worker, /from-overseer)"
+  fi
+  if [ -d .claude/agents ]; then
+    echo "  .claude/agents/      — critic subagent (security-relevant review, runs on Haiku)"
+  fi
 }
