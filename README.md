@@ -43,6 +43,10 @@ cp -r templates/. ~/.dual-model/templates/
 #   (the trailing dot copies hidden entries like .claude/ too)
 #   (or: export DUAL_MODEL_TEMPLATES=/abs/path/to/dual-model-workflow/templates)
 
+# 2b. Install the security precheck script (used by the Overseer before every review)
+mkdir -p ~/.claude/scripts
+cp scripts/security-scan.sh ~/.claude/scripts/
+
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
 
@@ -110,6 +114,8 @@ The fix is not to make the Overseer read all the code (that violates its "don't 
 This deliberately separates **fact reporting** from **risk judgment**: the Worker only answers factually ("did you change an interface", "did you touch these security-sensitive surfaces") — answerable even without understanding the risk; the Overseer judges the risk. "Unresolved doubts" is the single highest-value line — it catches the blind spot where **the Worker isn't blocked, so it never triggers a switch, but it's actually unsure**. That case used to fall straight through the net.
 
 A paired hard rule for the Overseer: **whenever the security item is non-empty, it must invoke the `critic` subagent** (defined in [`templates/.claude/agents/critic.md`](templates/.claude/agents/critic.md), runs on Haiku) to read the relevant files and return a structured audit, rather than relying on the summary. This operationalizes the "must read code" rule without making the Overseer itself read large numbers of files — the critic does the reading and reports back; the Overseer judges from the report.
+
+That still leaves a gap: the escape hatch is gated on the Worker's self-report, and models reflexively fill "none" (see the caveat below). The fix is an objective trigger that doesn't depend on self-reporting: before every review, the Overseer runs [`scripts/security-scan.sh`](scripts/security-scan.sh) — a pure local `grep` over the diff's added lines (zero token cost, no model call) that flags security-sensitive keywords (auth/secrets, SQL, command execution, path traversal, outbound requests). **A hit or a non-empty security item — either one — forces the `critic` invocation.** A hit doesn't mean there's a real problem, only that review gets escalated to mandatory; the script is a trigger, not a verdict.
 
 ### Why this patch doesn't auto-work (the honest caveat)
 
@@ -185,6 +191,10 @@ cp -r templates/. ~/.dual-model/templates/
 #   (尾部的 . 同时拷贝 .claude/ 等隐藏目录)
 #   (或:export DUAL_MODEL_TEMPLATES=/绝对路径/dual-model-workflow/templates)
 
+# 2b. 安装安全预检脚本(全局者每次审查前运行)
+mkdir -p ~/.claude/scripts
+cp scripts/security-scan.sh ~/.claude/scripts/
+
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
 
@@ -252,6 +262,8 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 这里有意把**事实上报**和**风险判断**分开:工作者只需如实回答「改没改接口」「碰没碰这些安全敏感面」—— 即使不懂风险也答得出;风险判断交给全局者。其中「未解决的疑虑」是单条价值最高的一项,专门抓那种**工作者没卡住、所以从不触发切换、但其实心里没底**的盲区 —— 这种情况以前完全漏在网外。
 
 配套给全局者加一条硬规则:**只要安全项非空,就必须 invoke `critic` 子代理**(定义在 [`templates/.claude/agents/critic.md`](templates/.claude/agents/critic.md),用 Haiku 跑)去读相关文件并返回结构化审查报告,不能只看摘要。这把"必须读代码"规则操作化了 —— 全局者自己仍不读大量文件,由 critic 子代理代读并出报告,全局者凭报告判断。
+
+但这仍留了一个缺口:逃生口的开关挂在工作者自报上,而模型会反射性填「无」(见下面的告诫)。对策是加一层不依赖自报的客观触发器:全局者每次审查前先跑 [`scripts/security-scan.sh`](scripts/security-scan.sh) —— 纯本地 `grep` 扫 diff 新增行(零 token、不调模型),命中认证/密钥、SQL、命令执行、路径穿越、外部请求等安全敏感关键词就报警。**脚本命中或安全项非空,二者任一,都强制走 `critic` 子代理审查。**命中不等于真有问题,只是把审查从"可选"升级为"必须",脚本给的是触发信号,不是结论。
 
 ### 这个补丁不会自动生效(诚实的告诫)
 

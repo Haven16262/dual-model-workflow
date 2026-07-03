@@ -1,3 +1,7 @@
+---
+description: 切换到工作者角色 — 读 WORKFLOW.md 与 context.md 后开始按全局者决策执行
+---
+
 # /as-worker — 接手工作者角色
 
 ## 何时使用

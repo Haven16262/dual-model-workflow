@@ -8,7 +8,8 @@
 职责：
 - 项目启动时制定架构和方向
 - 工作者遇到分歧时给出决策
-- 阶段性审查工作者输出：核对「关键决策点」四项；**安全项非空时必须 invoke `critic` 子代理(`.claude/agents/critic.md`，Haiku)对工作者点名的相关文件做结构化审查，凭其报告判断，不得仅凭摘要放行**；确认方向后放行
+- 阶段性审查工作者输出：**先跑安全预检 `bash ~/.claude/scripts/security-scan.sh [<base-ref>]`**（纯本地 grep 扫 diff 新增行，零 token；base-ref 传上次审查通过时的 commit，省略则只扫未提交改动）；核对「关键决策点」四项；**脚本命中或安全项非空（二者任一）时，必须 invoke `critic` 子代理(`.claude/agents/critic.md`，Haiku)对相关文件做结构化审查，凭其报告判断，不得仅凭摘要放行**；确认方向后放行
+  > 预检脚本是客观触发器，不依赖工作者自报——防「该报安全项却反射性填『无』」的失效模式。命中不等于有问题，只是升级为必审。
 - 最终 review
 - 维护「跨 Phase 关键约定」+ phase 关闭时归档历史到 `context_history.md`
 
@@ -108,6 +109,8 @@
 2. 把「本 Phase 历史」里更早的轮次整体 append 到 `context_history.md`(按 phase 大标题分段)
 3. 更新「跨 Phase 关键约定」(如有新决策)
 4. **新 phase 启动时:** 全局者写新「当前状态」+ 把上面那段「Phase X 关闭」总结也归档到 `context_history.md`(本 phase 历史块清空,准备接受新对)
+
+**history 长度备忘:** `context_history.md` 超过约 2000 行(Read 工具单次读取上限)时,由全局者做一次**阶段封存**:把已闭环的早期 phase 整体挪到 `context_history-archive-<阶段名>.md`,主文件只留活跃部分。一次性人工动作,不引入指针/索引等持续维护机制;定点回查历史一律用 grep,不全量通读。
 
 ---
 
