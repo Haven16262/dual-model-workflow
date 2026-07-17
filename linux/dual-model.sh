@@ -1,7 +1,7 @@
 # dual-model-workflow — shell helpers
 #
 # Source this from your ~/.bashrc (or ~/.zshrc):
-#   source /path/to/dual-model-workflow/shell/dual-model.sh
+#   source /path/to/dual-model-workflow/linux/dual-model.sh
 #
 # Prerequisites:
 #   1. Claude Code CLI installed and on PATH (`claude`).

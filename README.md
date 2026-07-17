@@ -30,7 +30,20 @@ The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-d
 - **`CLAUDE.md`** — project-level startup instructions: every session must (1) read `WORKFLOW.md`, (2) read `context.md` (top status block first, then latest history), (3) restate "I am [role], current task is: [summary]" and begin.
 - **`context.md`** — the core. A top `## Current State` block (overwritten on each write — the latest task list) plus an append-only history log (timestamped records of every decision and execution step).
 
-### Quick start
+### Repository layout
+
+```
+templates/   # markdown templates — platform-neutral, shared by both platforms
+scripts/     # security-scan.sh — bash, runs on both platforms (Git Bash on Windows)
+linux/       # bash helpers (cc / cc-ds / cc-init) — source into ~/.bashrc
+windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
+```
+
+Only the shell helpers differ per platform; everything else (templates, security scan, license) is shared at the repo root. To sync a workflow change across machines: `git pull` on each machine — the sourced helper file updates in place.
+
+One real behavioral difference between the two ports: **model switching**. The Linux version injects the DeepSeek endpoint via environment variables at launch; the Windows version swaps `~\.claude\settings.json` from two prepared copies (`settings.anthropic.json` / `settings.deepseek.json`). See the header comments in each helper file.
+
+### Quick start — Linux / macOS (bash)
 
 ```bash
 # 1. Clone
@@ -51,7 +64,7 @@ cp scripts/security-scan.sh ~/.claude/scripts/
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
 
 # 4. Source the helpers
-echo 'source '"$PWD"'/shell/dual-model.sh' >> ~/.bashrc
+echo 'source '"$PWD"'/linux/dual-model.sh' >> ~/.bashrc
 source ~/.bashrc
 
 # 5. In any project directory, initialize the workflow
@@ -59,9 +72,40 @@ cd /path/to/your/project
 cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
+> **Naming note:** `cc` shadows the system C compiler (`/usr/bin/cc`) in interactive shells. If you do C development, rename the functions in `linux/dual-model.sh` (e.g. `dm`, `dm-ds`, `dm-init`).
 
-> **Naming note:** `cc` shadows the system C compiler (`/usr/bin/cc`) in interactive shells. If you do C development, rename the functions in `shell/dual-model.sh` (e.g. `dm`, `dm-ds`, `dm-init`).
+### Quick start — Windows (PowerShell)
+
+```powershell
+# 1. Clone
+git clone https://github.com/Haven16262/dual-model-workflow.git
+cd dual-model-workflow
+
+# 2. Make templates discoverable (default location)
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
+Copy-Item -Recurse -Force templates\* "$env:USERPROFILE\.dual-model\templates\"
+Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templates\"
+#   (the wildcard skips hidden dirs, so .claude/ needs its own copy)
+#   (or: $env:DUAL_MODEL_TEMPLATES = "C:\abs\path\to\dual-model-workflow\templates")
+
+# 2b. Install the security precheck script (runs under Git Bash, which Claude Code ships with)
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
+Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
+
+# 3. Prepare the two settings files for model switching (NEVER commit the key)
+#    ~\.claude\settings.anthropic.json — your normal Claude settings (Overseer)
+#    ~\.claude\settings.deepseek.json  — same, plus DeepSeek endpoint env + API key (Worker)
+
+# 4. Dot-source the helpers in your PowerShell profile
+Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
+. $PROFILE
+
+# 5. In any project directory, initialize the workflow
+cd C:\path\to\your\project
+cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+```
+
+Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
 
 ### Switching roles
 
@@ -178,7 +222,20 @@ MIT — see [LICENSE](LICENSE).
 - **`CLAUDE.md`** —— 项目级启动指令:每次 session 必须 (1) 读 `WORKFLOW.md`,(2) 读 `context.md`(先看顶部当前状态,再看最新历史),(3) 复述「我是[角色],当前任务是:[摘要]」再开始。
 - **`context.md`** —— 整个工作流的核心。顶部 `## 当前状态`(每次写入覆盖,放最新任务清单)+ 仅追加的历史记录(每次写入留一条带时间戳的记录)。
 
-### 快速开始
+### 仓库布局
+
+```
+templates/   # markdown 模板 —— 平台无关,两端共用
+scripts/     # security-scan.sh —— bash 脚本,两端都能跑(Windows 走 Git Bash)
+linux/       # bash helper(cc / cc-ds / cc-init)—— source 进 ~/.bashrc
+windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
+```
+
+只有 shell helper 按平台分开,其余(模板、安全扫描、许可证)都放仓库根共享。跨机器同步工作流更新:每台机器 `git pull` 即可,被 source 的 helper 文件原地更新。
+
+两个移植版有一处真实的行为差异:**模型切换**。Linux 版在启动时用环境变量注入 DeepSeek 端点;Windows 版通过替换 `~\.claude\settings.json`(预先准备 `settings.anthropic.json` / `settings.deepseek.json` 两份)实现。详见各 helper 文件的头部注释。
+
+### 快速开始 —— Linux / macOS(bash)
 
 ```bash
 # 1. 克隆
@@ -199,7 +256,7 @@ cp scripts/security-scan.sh ~/.claude/scripts/
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
 
 # 4. 引入 helper
-echo 'source '"$PWD"'/shell/dual-model.sh' >> ~/.bashrc
+echo 'source '"$PWD"'/linux/dual-model.sh' >> ~/.bashrc
 source ~/.bashrc
 
 # 5. 在任意项目目录初始化工作流
@@ -207,9 +264,40 @@ cd /你的/项目
 cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
+> **命名提醒:** `cc` 会在交互 shell 里覆盖系统 C 编译器(`/usr/bin/cc`)。如果你做 C 开发,改掉 `linux/dual-model.sh` 里的函数名(如 `dm`、`dm-ds`、`dm-init`)。
 
-> **命名提醒:** `cc` 会在交互 shell 里覆盖系统 C 编译器(`/usr/bin/cc`)。如果你做 C 开发,改掉 `shell/dual-model.sh` 里的函数名(如 `dm`、`dm-ds`、`dm-init`)。
+### 快速开始 —— Windows(PowerShell)
+
+```powershell
+# 1. 克隆
+git clone https://github.com/Haven16262/dual-model-workflow.git
+cd dual-model-workflow
+
+# 2. 把模板放到默认位置
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
+Copy-Item -Recurse -Force templates\* "$env:USERPROFILE\.dual-model\templates\"
+Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templates\"
+#   (通配符不带隐藏目录,.claude/ 要单独复制一次)
+#   (或:$env:DUAL_MODEL_TEMPLATES = "C:\绝对路径\dual-model-workflow\templates")
+
+# 2b. 安装安全预检脚本(在 Git Bash 下运行,Claude Code 自带)
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
+Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
+
+# 3. 准备模型切换用的两份 settings(key 绝不要提交进仓库)
+#    ~\.claude\settings.anthropic.json — 你正常的 Claude 配置(全局者)
+#    ~\.claude\settings.deepseek.json  — 同上,加 DeepSeek 端点 env + API key(工作者)
+
+# 4. 在 PowerShell profile 里 dot-source helper
+Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
+. $PROFILE
+
+# 5. 在任意项目目录初始化工作流
+cd C:\你的\项目
+cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+```
+
+然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
 
 ### 切换角色
 
