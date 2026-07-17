@@ -20,6 +20,7 @@
 : "${DUAL_MODEL_TEMPLATES:=$HOME/.dual-model/templates}"
 
 _cc_workflow_prompt() {
+  _CC_ROLE_PROMPT=""
   [ ! -f "WORKFLOW.md" ] && return
   echo ""
   echo "  Dual-model workflow project detected"
@@ -28,28 +29,24 @@ _cc_workflow_prompt() {
   read _role
   case $_role in
     1)
+      _CC_ROLE_PROMPT="You are the Overseer. Read context.md for current state, set or confirm direction, write it to context.md. When done, say: 'Decision written, you can switch back to the Worker.'"
       echo ""
-      echo "  -- Overseer startup prompt (paste to the model) ----------------------"
-      echo "  You are the Overseer. Read context.md for current state, set or"
-      echo "  confirm direction, write it to context.md. When done, say:"
-      echo "  'Decision written, you can switch back to the Worker.'"
-      echo "  ---------------------------------------------------------------------"
+      echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
       echo "  To switch: in the Worker terminal, type:"
       echo "  'The Overseer changed something, check the context file.'"
       echo "  (or use the /as-worker slash command)"
-      echo ""
       ;;
     2)
+      _CC_ROLE_PROMPT="You are the Worker. Read WORKFLOW.md and context.md for the current task and execute. On a trigger condition, stop and say: '[reason], please switch to the Overseer.'"
       echo ""
-      echo "  -- Worker startup prompt (paste to the model) ------------------------"
-      echo "  You are the Worker. Read WORKFLOW.md and context.md for the current"
-      echo "  task and execute. On a trigger condition, stop and say:"
-      echo "  '[reason], please switch to the Overseer.'"
-      echo "  ---------------------------------------------------------------------"
+      echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
       echo "  To switch: in the Overseer terminal, type:"
       echo "  'The Worker changed something, check the context file.'"
       echo "  (or use the /as-overseer slash command)"
+      ;;
+    *)
       echo ""
+      echo "  No role selected — no prompt injected (model defaults to Worker per WORKFLOW.md)."
       ;;
   esac
   echo ""
@@ -58,7 +55,7 @@ _cc_workflow_prompt() {
 # Overseer — Claude (or whatever your default `claude` provider is)
 cc() {
   _cc_workflow_prompt
-  claude "$@"
+  claude ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
 # Worker — DeepSeek via Claude Code's Anthropic-compatible endpoint
@@ -75,7 +72,7 @@ cc-ds() {
   ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-v4-pro[1m]" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash \
   CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash \
-  claude "$@"
+  claude ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
 # Initialize the dual-model workflow in the current project directory

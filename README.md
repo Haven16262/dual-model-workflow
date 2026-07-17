@@ -59,7 +59,7 @@ cd /path/to/your/project
 cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each prints a role prompt and reads `WORKFLOW.md` / `context.md` to restore state.
+Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
 
 > **Naming note:** `cc` shadows the system C compiler (`/usr/bin/cc`) in interactive shells. If you do C development, rename the functions in `shell/dual-model.sh` (e.g. `dm`, `dm-ds`, `dm-init`).
 
@@ -207,7 +207,7 @@ cd /你的/项目
 cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会打印角色提示并读 `WORKFLOW.md` / `context.md` 恢复状态。
+然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
 
 > **命名提醒:** `cc` 会在交互 shell 里覆盖系统 C 编译器(`/usr/bin/cc`)。如果你做 C 开发,改掉 `shell/dual-model.sh` 里的函数名(如 `dm`、`dm-ds`、`dm-init`)。
 
