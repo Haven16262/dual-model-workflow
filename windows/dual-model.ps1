@@ -5,10 +5,12 @@
 #
 # 前置条件:
 #   1. Claude Code CLI 已安装且在 PATH 上（`claude`）。
-#   2. 模型切换机制与 Linux 版不同——Linux 版用环境变量注入 DeepSeek 端点，
-#      Windows 版通过整体替换 ~\.claude\settings.json 实现，需要预先准备两份配置:
-#        ~\.claude\settings.anthropic.json  — Claude 官方配置（全局者用）
+#   2. 模型切换机制与 Linux 版不同——Linux 版用命令前缀环境变量注入 DeepSeek 端点，
+#      Windows 版用 `claude --settings <file>` 只对单个会话叠加配置，需要预先准备:
 #        ~\.claude\settings.deepseek.json   — DeepSeek 端点配置（工作者用，内含 API key，绝不提交进仓库）
+#      全局者 cc 直接用 ~\.claude\settings.json 的默认配置。
+#      注意: 不要改回"整体覆盖 settings.json"的做法——那个文件是所有 Claude Code 进程共享的，
+#      一个终端切换会热重载到其它正在运行的会话上，导致两个终端串成同一个模型。
 #   3. 模板放在 $env:DUAL_MODEL_TEMPLATES（默认 ~\.dual-model\templates）——
 #      把本仓库的 templates\ 整个复制过去（含 .claude\ 隐藏目录）。
 #
@@ -46,22 +48,21 @@ function _cc_workflow_prompt {
   Write-Host ""
 }
 
-# 全局者 — Claude（切换到官方配置）
+# 全局者 — Claude（用 ~\.claude\settings.json 里的默认配置，不做任何切换）
 function cc {
   _cc_workflow_prompt
-  Copy-Item -Path "$env:USERPROFILE\.claude\settings.anthropic.json" -Destination "$env:USERPROFILE\.claude\settings.json" -Force
   if ($script:CC_ROLE_PROMPT) { claude --append-system-prompt $script:CC_ROLE_PROMPT @args } else { claude @args }
 }
 
-# 工作者 — DeepSeek（切换到 DeepSeek 端点配置）
+# 工作者 — DeepSeek（用 --settings 只对本会话叠加 DeepSeek 端点配置）
 function cc-ds {
-  if (-not (Test-Path "$env:USERPROFILE\.claude\settings.deepseek.json")) {
+  $dsSettings = "$env:USERPROFILE\.claude\settings.deepseek.json"
+  if (-not (Test-Path $dsSettings)) {
     Write-Error "cc-ds: 未找到 ~\.claude\settings.deepseek.json，请先准备 DeepSeek 端点配置。"
     return
   }
   _cc_workflow_prompt
-  Copy-Item -Path "$env:USERPROFILE\.claude\settings.deepseek.json" -Destination "$env:USERPROFILE\.claude\settings.json" -Force
-  if ($script:CC_ROLE_PROMPT) { claude --append-system-prompt $script:CC_ROLE_PROMPT @args } else { claude @args }
+  if ($script:CC_ROLE_PROMPT) { claude --settings $dsSettings --append-system-prompt $script:CC_ROLE_PROMPT @args } else { claude --settings $dsSettings @args }
 }
 
 # 在当前项目目录初始化双模型工作流

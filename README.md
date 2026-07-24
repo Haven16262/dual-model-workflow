@@ -41,7 +41,7 @@ windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
 
 Only the shell helpers differ per platform; everything else (templates, security scan, license) is shared at the repo root. To sync a workflow change across machines: `git pull` on each machine — the sourced helper file updates in place.
 
-One real behavioral difference between the two ports: **model switching**. The Linux version injects the DeepSeek endpoint via environment variables at launch; the Windows version swaps `~\.claude\settings.json` from two prepared copies (`settings.anthropic.json` / `settings.deepseek.json`). See the header comments in each helper file.
+One real behavioral difference between the two ports: **model switching**. The Linux version injects the DeepSeek endpoint via per-command environment variables at launch; the Windows version passes `claude --settings ~\.claude\settings.deepseek.json`. Both are scoped to a single session, so two terminals never interfere. Do not switch models by overwriting `~\.claude\settings.json` — that file is shared by every running Claude Code process, and rewriting it hot-reloads into sessions already running in other terminals. See the header comments in each helper file.
 
 ### Quick start — Linux / macOS (bash)
 
@@ -92,9 +92,9 @@ Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templa
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 
-# 3. Prepare the two settings files for model switching (NEVER commit the key)
-#    ~\.claude\settings.anthropic.json — your normal Claude settings (Overseer)
-#    ~\.claude\settings.deepseek.json  — same, plus DeepSeek endpoint env + API key (Worker)
+# 3. Prepare the settings file for model switching (NEVER commit the key)
+#    ~\.claude\settings.deepseek.json  — DeepSeek endpoint env + API key (Worker)
+#    (the Overseer just uses your normal ~\.claude\settings.json — nothing to prepare)
 
 # 4. Dot-source the helpers in your PowerShell profile
 Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
@@ -233,7 +233,7 @@ windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
 
 只有 shell helper 按平台分开,其余(模板、安全扫描、许可证)都放仓库根共享。跨机器同步工作流更新:每台机器 `git pull` 即可,被 source 的 helper 文件原地更新。
 
-两个移植版有一处真实的行为差异:**模型切换**。Linux 版在启动时用环境变量注入 DeepSeek 端点;Windows 版通过替换 `~\.claude\settings.json`(预先准备 `settings.anthropic.json` / `settings.deepseek.json` 两份)实现。详见各 helper 文件的头部注释。
+两个移植版有一处真实的行为差异:**模型切换**。Linux 版在启动时用命令前缀环境变量注入 DeepSeek 端点;Windows 版用 `claude --settings ~\.claude\settings.deepseek.json` 传入。两种做法都只作用于单个会话,两个终端互不干扰。不要用"覆盖 `~\.claude\settings.json`"的方式切模型——那个文件被所有正在运行的 Claude Code 进程共享,改它会热重载到其它终端里已经在跑的会话上。详见各 helper 文件的头部注释。
 
 ### 快速开始 —— Linux / macOS(bash)
 
@@ -284,9 +284,9 @@ Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templa
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 
-# 3. 准备模型切换用的两份 settings(key 绝不要提交进仓库)
-#    ~\.claude\settings.anthropic.json — 你正常的 Claude 配置(全局者)
-#    ~\.claude\settings.deepseek.json  — 同上,加 DeepSeek 端点 env + API key(工作者)
+# 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
+#    ~\.claude\settings.deepseek.json  — DeepSeek 端点 env + API key(工作者)
+#    (全局者直接用你正常的 ~\.claude\settings.json,不用另外准备)
 
 # 4. 在 PowerShell profile 里 dot-source helper
 Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
