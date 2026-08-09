@@ -19,9 +19,28 @@
 
 : "${DUAL_MODEL_TEMPLATES:=$HOME/.dual-model/templates}"
 
+# Session names are derived from the project directory, not fixed strings.
+# Two projects running the workflow at the same time would otherwise both have
+# a session called "worker", and a handoff message could land in the wrong
+# project — worse than having no automation at all.
+_cc_session_slug() {
+  local _s
+  _s=$(printf '%s' "$(basename "$PWD")" | tr -c 'A-Za-z0-9._-' '-' | tr -s '-' \
+       | sed 's/^-*//; s/-*$//')
+  # A non-ASCII directory name collapses to nothing but dashes, and two such
+  # projects would then share a slug — fall back to a hash of the full path.
+  case "$_s" in
+    *[A-Za-z0-9]*) printf '%s' "$_s" ;;
+    *)             printf 'proj-%s' "$(printf '%s' "$PWD" | cksum | cut -d' ' -f1)" ;;
+  esac
+}
+
 _cc_workflow_prompt() {
   _CC_ROLE_PROMPT=""
+  _CC_SESSION_NAME=""
   [ ! -f "WORKFLOW.md" ] && return
+  local _slug
+  _slug=$(_cc_session_slug)
   echo ""
   echo "  Dual-model workflow project detected"
   echo "  1) Overseer    2) Worker"
@@ -29,24 +48,27 @@ _cc_workflow_prompt() {
   read _role
   case $_role in
     1)
-      _CC_ROLE_PROMPT="You are the Overseer. Read context.md for current state, set or confirm direction, write it to context.md. When done, say: 'Decision written, you can switch back to the Worker.'"
+      _CC_SESSION_NAME="${_slug}-overseer"
+      _CC_ROLE_PROMPT="You are the Overseer. Session names for this project: yours is '${_slug}-overseer', the Worker's is '${_slug}-worker' — address it with SendMessage as described in the cross-session notification section of WORKFLOW.md. Read context.md for current state, set or confirm direction, write it to context.md."
       echo ""
       echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
-      echo "  To switch: in the Worker terminal, type:"
-      echo "  'The Overseer changed something, check the context file.'"
-      echo "  (or use the /as-worker slash command)"
+      echo "  - Session name: ${_CC_SESSION_NAME}  (peer: ${_slug}-worker)"
+      echo "  Handoffs are sent to the Worker automatically once it is running."
+      echo "  Manual fallback: in the Worker terminal, type /as-worker"
       ;;
     2)
-      _CC_ROLE_PROMPT="You are the Worker. Read WORKFLOW.md and context.md for the current task and execute. On a trigger condition, stop and say: '[reason], please switch to the Overseer.'"
+      _CC_SESSION_NAME="${_slug}-worker"
+      _CC_ROLE_PROMPT="You are the Worker. Session names for this project: yours is '${_slug}-worker', the Overseer's is '${_slug}-overseer' — address it with SendMessage as described in the cross-session notification section of WORKFLOW.md. Read WORKFLOW.md and context.md for the current task and execute."
       echo ""
       echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
-      echo "  To switch: in the Overseer terminal, type:"
-      echo "  'The Worker changed something, check the context file.'"
-      echo "  (or use the /as-overseer slash command)"
+      echo "  - Session name: ${_CC_SESSION_NAME}  (peer: ${_slug}-overseer)"
+      echo "  Handoffs are sent to the Overseer automatically once it is running."
+      echo "  Manual fallback: in the Overseer terminal, type /as-overseer"
       ;;
     *)
       echo ""
-      echo "  No role selected — no prompt injected (model defaults to Worker per WORKFLOW.md)."
+      echo "  No role selected — no prompt injected, no session name set."
+      echo "  (model defaults to Worker per WORKFLOW.md; handoffs stay manual)"
       ;;
   esac
   echo ""
@@ -55,7 +77,8 @@ _cc_workflow_prompt() {
 # Overseer — Claude (or whatever your default `claude` provider is)
 cc() {
   _cc_workflow_prompt
-  claude ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
+  claude ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
+         ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
 # Worker — DeepSeek via Claude Code's Anthropic-compatible endpoint
@@ -72,7 +95,8 @@ cc-ds() {
   ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-v4-pro[1m]" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash \
   CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash \
-  claude ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
+  claude ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
+         ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
 # Initialize the dual-model workflow in the current project directory
