@@ -35,11 +35,26 @@ _cc_session_slug() {
   esac
 }
 
+# The project slug alone repeats on every launch, so the /resume picker fills up
+# with rows that are impossible to tell apart. A per-launch topic fixes that.
+# Only clearly harmful characters are stripped, never a whitelist: tr works on
+# bytes, and every byte of a multi-byte character is >= 0x80, so ASCII deletions
+# can't corrupt a CJK topic.
+_cc_topic_slug() {
+  printf '%s' "$1" \
+    | tr -d '\000-\037' \
+    | tr -s '[:space:]' '-' \
+    | tr -d '"`$\\/' \
+    | tr -d "'" \
+    | tr -s '-' \
+    | sed 's/^-*//; s/-*$//'
+}
+
 _cc_workflow_prompt() {
   _CC_ROLE_PROMPT=""
   _CC_SESSION_NAME=""
   [ ! -f "WORKFLOW.md" ] && return
-  local _slug
+  local _slug _role _topic _peer
   _slug=$(_cc_session_slug)
   echo ""
   echo "  Dual-model workflow project detected"
@@ -47,30 +62,44 @@ _cc_workflow_prompt() {
   printf "  Current role [1/2]: "
   read _role
   case $_role in
-    1)
-      _CC_SESSION_NAME="${_slug}-overseer"
-      _CC_ROLE_PROMPT="You are the Overseer. Session names for this project: yours is '${_slug}-overseer', the Worker's is '${_slug}-worker' — address it with SendMessage as described in the cross-session notification section of WORKFLOW.md. Read context.md for current state, set or confirm direction, write it to context.md."
-      echo ""
-      echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
-      echo "  - Session name: ${_CC_SESSION_NAME}  (peer: ${_slug}-worker)"
-      echo "  Handoffs are sent to the Worker automatically once it is running."
-      echo "  Manual fallback: in the Worker terminal, type /as-worker"
-      ;;
-    2)
-      _CC_SESSION_NAME="${_slug}-worker"
-      _CC_ROLE_PROMPT="You are the Worker. Session names for this project: yours is '${_slug}-worker', the Overseer's is '${_slug}-overseer' — address it with SendMessage as described in the cross-session notification section of WORKFLOW.md. Read WORKFLOW.md and context.md for the current task and execute."
-      echo ""
-      echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
-      echo "  - Session name: ${_CC_SESSION_NAME}  (peer: ${_slug}-overseer)"
-      echo "  Handoffs are sent to the Overseer automatically once it is running."
-      echo "  Manual fallback: in the Overseer terminal, type /as-overseer"
-      ;;
+    1) _CC_SESSION_NAME="${_slug}-overseer"; _peer="${_slug}-worker-" ;;
+    2) _CC_SESSION_NAME="${_slug}-worker";   _peer="${_slug}-overseer-" ;;
     *)
       echo ""
       echo "  No role selected — no prompt injected, no session name set."
       echo "  (model defaults to Worker per WORKFLOW.md; handoffs stay manual)"
+      echo ""
+      return
       ;;
   esac
+
+  printf "  Topic for this round (optional, Enter to skip): "
+  read _topic
+  _topic=$(_cc_topic_slug "$_topic")
+  # Empty topic still needs a discriminator, or the /resume rows collide again.
+  [ -z "$_topic" ] && _topic=$(date +%m%d-%H%M)
+  _CC_SESSION_NAME="${_CC_SESSION_NAME}-${_topic}"
+
+  case $_role in
+    1)
+      _CC_ROLE_PROMPT="You are the Overseer. Your session name is '${_CC_SESSION_NAME}'. The Worker's session name starts with '${_peer}' but its suffix is picked at the Worker's own launch, so you cannot compute it: before sending a handoff, run ListAgents once and use the row whose name starts with that prefix. Exactly one match — send to it with SendMessage as described in the cross-session notification section of WORKFLOW.md. No match or several — fall back to the manual handoff described there, do not guess. Read context.md for current state, set or confirm direction, write it to context.md."
+      ;;
+    2)
+      _CC_ROLE_PROMPT="You are the Worker. Your session name is '${_CC_SESSION_NAME}'. The Overseer's session name starts with '${_peer}' but its suffix is picked at the Overseer's own launch, so you cannot compute it: before sending a handoff, run ListAgents once and use the row whose name starts with that prefix. Exactly one match — send to it with SendMessage as described in the cross-session notification section of WORKFLOW.md. No match or several — fall back to the manual handoff described there, do not guess. Read WORKFLOW.md and context.md for the current task and execute."
+      ;;
+  esac
+
+  echo ""
+  echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
+  echo "  - Session name: ${_CC_SESSION_NAME}"
+  echo "  - Peer prefix:  ${_peer}*   (resolved via ListAgents at send time)"
+  if [ "$_role" = 1 ]; then
+    echo "  Handoffs are sent to the Worker automatically once it is running."
+    echo "  Manual fallback: in the Worker terminal, type /as-worker"
+  else
+    echo "  Handoffs are sent to the Overseer automatically once it is running."
+    echo "  Manual fallback: in the Overseer terminal, type /as-overseer"
+  fi
   echo ""
 }
 
