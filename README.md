@@ -353,7 +353,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 **可选:让平台替你盯着。** 全局者交出任务时可以带上 `notify_when_idle`(≥ 2.1.236,仅同机器),请平台在工作者下次空闲时回一条通知。好处是不依赖工作者记得发消息;代价是它只说「空闲了」,不说「交接好了」——收到后仍要读 `context.md` 确认有没有新交接块。
 
-**平台状态:** 跨会话消息最初只有 macOS 和 Linux,Windows 从 2.1.234 起补齐,现在三端都可用。但 **`windows/dual-model.ps1` 还没跟进**——它不设置会话名,所以 Windows 端目前仍走人工中转(规则会自动回退,行为等同于本节不存在)。模板不为平台分叉,等 PowerShell 侧补上会话命名后本节对 Windows 同样生效。
+**平台状态:** 跨会话消息最初只有 macOS 和 Linux,Windows 从 2.1.234 起补齐,现在三端都可用。`windows/dual-model.ps1` 已跟进会话命名,本节对 Windows 同样生效。模板不为平台分叉,两端行为一致——只有非 ASCII 目录名的哈希兜底实现不同(Linux 用 `cksum`,PowerShell 没有,改用 SHA256 前 8 位十六进制),两边都只保证「同路径永远同结果」,不保证跨平台算出同一个值。
 
 同机器上两个终端直接走本地 socket(Windows 上是命名管道),不经过 Anthropic 服务器;**跨机器**(比如 VPS 和本地电脑)才需要两端都连 Remote Control,消息经服务器中转。另外 WSL 2 里的会话和同一台电脑上的原生 Windows 会话**互相看不见**——注册在不同的 home 目录,socket 类型也不同。
 
