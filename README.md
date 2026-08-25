@@ -357,6 +357,8 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 同机器上两个终端直接走本地 socket(Windows 上是命名管道),不经过 Anthropic 服务器;**跨机器**(比如 VPS 和本地电脑)才需要两端都连 Remote Control,消息经服务器中转。另外 WSL 2 里的会话和同一台电脑上的原生 Windows 会话**互相看不见**——注册在不同的 home 目录,socket 类型也不同。
 
+> **测试时的坑:** 从一个 Claude Code 会话里 spawn 出来的终端会继承 `CLAUDE_CODE_CHILD_SESSION` 环境变量,那个会话**不会注册进 peer 列表**,`ListAgents` 里根本看不见(终端里会提示 `Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker`)。真人在干净终端里敲 `cc` 不会遇到,但脚本化验证这套机制时会栽进去,而且现象和"名字对不上"一模一样。
+
 **别指望它做无人值守自动循环。** 发给「已跳过权限确认」会话的跨会话消息会被扣住等人工批准(平台设计如此)。这套机制省的是打字和上下文切换,不省盯着——这跟本工作流「人是检查点」的前提是一致的。
 
 ### 触发切换的条件(工作者 → 全局者)
