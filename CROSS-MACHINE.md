@@ -1,12 +1,129 @@
-# 跨机器工作流
+# Cross-machine workflow
+
+**[English](#english) · [中文](#中文)**
+
+---
+
+## English
+
+The dual-model workflow in this repository (Overseer + Worker) is a **same-machine** protocol: two terminals, one disk, one `context.md`. Working across machines is a different thing, and the rules don't carry over unchanged. This document covers only the cross-machine part.
+
+Day-to-day same-machine use doesn't need it. The line in `WORKFLOW.md` that says "this section assumes both terminals are on the same machine" points here.
+
+### First decide whether you actually need a cross-machine handoff
+
+Usually you don't. Work through these in order:
+
+1. **Both machines work on the same git repository** → you need this. Read on.
+2. **Each machine does its own thing and you just want to tell the other something** ("I changed the shared config, heads up") → one message is enough. Don't build anything.
+3. **Putting a project's Overseer on machine A and its Worker on machine B** → **don't**. That stretches the same-machine protocol past what it was built for: every handoff of `context.md` now has to round-trip through push/pull, and more breaks than you save. A Worker belongs on the same machine as its Overseer.
+
+The normal cross-machine shape is **two Overseers talking to each other**, each with its own Worker at home. What crosses the wire is direction-alignment, not task assignment.
+
+### Requirements
+
+- **Both ends connected to Remote Control.** Miss one and the peer's row doesn't appear in `ListAgents` at all — that's not "sent but undelivered", it's not addressable.
+- Versions: macOS / Linux / WSL 2 ≥ 2.1.224, native Windows ≥ 2.1.234.
+- **Read the status column.** A dropped connection lingers in the listing as `offline`; a message sent there won't arrive. Only send to `idle` / `running` rows.
+
+### The iron rule holds — the "file" just lives somewhere else
+
+Same-machine, the rule is **a message only wakes the other side and points at the file; decisions always go into `context.md`**. Across machines this **still holds**, but the two machines share no disk —
+
+> **The shared git repository is that disk.**
+
+So a cross-machine handoff is three steps, not one:
+
+1. Write `context.md` in the usual format
+2. **`git push`**
+3. Send a message that is a **pointer**:
+
+   > Pushed to `origin/main`. The handoff block is the `[2026-08-25 14:30 +08:00]` entry in `context.md` — pull, then pick up via `/as-overseer`.
+
+The receiving side: **`git pull` first, then read the file**, then run the full procedure. Never start work from the message's description of it.
+
+**If the two machines share no repository**, there is no legitimate cross-machine handoff — that means the work shouldn't have been split this way. Take it back to your user instead of forcing content through messages.
+
+### On building a dedicated "message repository"
+
+**Don't** — use the project repository you already share.
+
+The problem a dedicated message repository would solve is one the project repository already solves: it's on both machines, diffable, and traceable by construction. An extra repository means one more thing to pull, one more thing to forget to sync, and one more place that can disagree with `context.md` without telling you which to believe. **A handoff record that lives in a different repository from the code it describes is pure liability.**
+
+On tokens: **the message isn't the expensive part — rebuilding context on the receiving end is.** A pointer message is a few hundred tokens, which rounds to nothing. The real cost is the receiver understanding the current state after reading the file, and that cost exists no matter what channel you use — which is exactly what the "Current State" block in `context.md` is there to compress.
+
+Conversely, **if you find your messages getting longer and starting to carry content, the channel isn't too small — the process has drifted.** Content belongs in the file. The platform refuses oversized messages anyway.
+
+### Addressing: the three-segment session name doesn't apply
+
+Same-machine, you find the peer by the `<project-dir>-<role>-<topic>` prefix. **Across machines that scheme is not in play:**
+
+- The peer shows up under its **Remote Control name** (something like `msi-linear-snail`), not the session name it was launched with.
+- When you send, the peer sees **your** Remote Control name as the sender. Its reply goes to that name.
+- So: **copy the `from` of the message you received** when replying. Don't assemble a name yourself.
+
+### Linux ↔ Windows specifics
+
+#### 1. Line endings (pinned at the repository level)
+
+`.gitattributes` at the root sets `* text=auto eol=lf`, so both working trees are LF.
+
+**Why this earns its own rule:** once line endings differ between the two ends, every handoff makes `context.md` diff as a whole-file change, and "what changed this round" becomes unreadable — and review in this workflow is done entirely by reading diffs. This isn't tidiness; the review mechanism fails outright.
+
+A fresh clone needs nothing. An existing clone that already took on CRLF needs one `git add --renormalize .`.
+
+#### 2. Write repository-relative paths only
+
+In `context.md`, write `src/auth/login.ts`. **Not** `C:\Users\Haven\...` or `/root/workspace/...`. An absolute path doesn't exist on the other machine, so the model goes looking, fails to find it, and starts guessing.
+
+#### 3. Timestamps carry a UTC offset
+
+Same-machine projects keep the plain `[YYYY-MM-DD HH:MM]` format. **Cross-machine projects** may span two timezones (a VPS is usually UTC, a personal machine usually isn't), and appended history entries end up out of order:
+
+```
+## [2026-08-25 14:30 +08:00] Overseer
+```
+
+With the offset, neither the reader nor the model has to guess.
+
+#### 4. Filename case
+
+Windows filesystems are case-insensitive, Linux ones aren't. Two files differing only in case coexist on Linux and collide into one on Windows. Don't create such names.
+
+#### 5. `security-scan.sh` runs under Git Bash on Windows
+
+Claude Code ships Git Bash, so the precheck script runs on both ends with the same command.
+
+### What doesn't work across machines
+
+- **`notify_when_idle`** — the platform limits it to "your sessions on this machine". Subscribing to a peer's idle notice across machines isn't available; don't build it into a procedure.
+
+### Content boundaries
+
+Cross-machine messages are **relayed through Anthropic servers** (same-machine traffic goes over a local socket / named pipe and never leaves the machine). Two consequences:
+
+1. **Keys, credentials, and anything that shouldn't leave never go in a message.** That material belongs in files and secret management, not in any channel.
+2. **Sessions wired to a third-party model endpoint** (a Worker running a non-Anthropic model, say) still relay through Anthropic when messaging across machines. I have no authoritative basis for where the compliance line sits here and won't guess.
+
+   In practice it doesn't come up: organize things as "cross-machine means two Overseers talking", keep Workers talking only to the Overseer on their own machine, and the question never arises. That constraint is correct on its own merits anyway — a Worker taking assignments across machines breaks the handoff chain at push/pull.
+
+To require your approval for every cross-machine message, add to your settings:
+
+```json
+{ "isolatePeerMachines": true }
+```
+
+It prompts even under `bypassPermissions`.
+
+---
+
+## 中文
 
 本仓库的双模型工作流（全局者 + 工作者）是**同机器**协议：两个终端、一块磁盘、一份 `context.md`。跨机器是另一回事，规则不能直接照搬。这份文档只管跨机器的部分。
 
 日常同机使用不需要读本文。`WORKFLOW.md` 里那句「本节假设两个终端在同一台机器上」指向的就是这里。
 
----
-
-## 先做一个判断：你真的需要跨机器交接吗
+### 先做一个判断：你真的需要跨机器交接吗
 
 多数时候不需要。按这个顺序判断：
 
@@ -18,7 +135,7 @@
 
 ---
 
-## 前提
+### 前提
 
 - **两端都连着 Remote Control**。缺一边，对方整行不出现在 `ListAgents` 里——不是"发了没到"，是根本寻不到址。
 - 版本：macOS / Linux / WSL 2 ≥ 2.1.224，原生 Windows ≥ 2.1.234。
@@ -26,7 +143,7 @@
 
 ---
 
-## 铁律不变，只是「文件」换了个地方
+### 铁律不变，只是「文件」换了个地方
 
 同机的铁律是**消息只叫醒和指路，决策内容一律写 `context.md`**。跨机器这条**同样成立**，只是两台机器没有共享磁盘——
 
@@ -46,7 +163,7 @@
 
 ---
 
-## 关于「要不要建一个专门的消息仓库」
+### 关于「要不要建一个专门的消息仓库」
 
 **不要建。** 用你们本来就共享的那个项目仓库。
 
@@ -58,7 +175,7 @@
 
 ---
 
-## 寻址：跨机器不用三段式会话名
+### 寻址：跨机器不用三段式会话名
 
 同机靠 `<项目目录名>-<角色>-<话题>` 前缀找人。**跨机器这套不适用**：
 
@@ -68,9 +185,9 @@
 
 ---
 
-## Linux ↔ Windows 的具体差异
+### Linux ↔ Windows 的具体差异
 
-### 1. 换行符（已在仓库层面钉死）
+#### 1. 换行符（已在仓库层面钉死）
 
 根目录的 `.gitattributes` 里是 `* text=auto eol=lf`，两端工作树统一 LF。
 
@@ -78,11 +195,11 @@
 
 新克隆的机器不用做任何事。已有克隆如果之前有 CRLF 混入，跑一次 `git add --renormalize .`。
 
-### 2. 路径只写仓库相对路径
+#### 2. 路径只写仓库相对路径
 
 `context.md` 里写 `src/auth/login.ts`，**不要**写 `C:\Users\Haven\...` 或 `/root/workspace/...`。绝对路径在对面那台机器上不存在，模型会去找、找不到、然后开始猜。
 
-### 3. 时间戳带 UTC 偏移
+#### 3. 时间戳带 UTC 偏移
 
 同机项目保持原格式 `[YYYY-MM-DD HH:MM]` 即可。**跨机器项目**两台机器时区可能不同（VPS 常年 UTC，个人机通常是本地时区），追加的历史条目会乱序：
 
@@ -92,23 +209,23 @@
 
 带上偏移，读的人和模型都不用猜。
 
-### 4. 文件名大小写
+#### 4. 文件名大小写
 
 Windows 文件系统大小写不敏感，Linux 敏感。两个只差大小写的文件在 Linux 上共存、到 Windows 上会撞成一个。别造这种文件名。
 
-### 5. `security-scan.sh` 在 Windows 上走 Git Bash
+#### 5. `security-scan.sh` 在 Windows 上走 Git Bash
 
 Claude Code 自带 Git Bash，预检脚本两端都能跑，命令一样。
 
 ---
 
-## 跨机器用不了的东西
+### 跨机器用不了的东西
 
 - **`notify_when_idle`**——平台限定「only to your sessions on this machine」。跨机器订阅对方空闲通知这条路不通，别写进流程。
 
 ---
 
-## 内容边界
+### 内容边界
 
 跨机器消息**经 Anthropic 服务器中转**（同机走本地 socket / 命名管道，不出机器）。两个后果：
 

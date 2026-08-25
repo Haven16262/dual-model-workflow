@@ -107,6 +107,21 @@ cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
 
+After you pick a role, the helper also asks for a **topic for this round** (optional, Enter to skip). Together with the project directory and the role it forms the session name, passed via `--name`, in three segments:
+
+```
+<project-dir>-<role>-<topic>          # e.g. bili-overseer-login-rework
+<project-dir>-<role>-<MMDD-HHMM>      # fallback when you skip the topic, e.g. bili-worker-0820-1145
+```
+
+Each segment earns its place; drop one and something breaks:
+
+- **Project directory** — with two projects running the workflow at once, a fixed name like `worker` would deliver a handoff to the *other project's* Worker. Worse than no automation at all.
+- **Role** — tells the two terminals of one project apart, and is what a handoff is aimed at.
+- **Topic** — without it every launch of the same project produces an identical name, and the `/resume` picker fills with rows you can't tell apart. `--name` also **overrides** the summary title Claude Code would have generated on its own, so a fixed name doesn't just fail to help — it replaces a useful title with a useless one.
+
+The cost: the sender can no longer compute the peer's full name from its own cwd, since the topic is typed at the peer's own launch. It has to look the name up before sending — see the next section.
+
 ### Switching roles
 
 The Worker finishes a phase or hits a decision it can't make, writes to `context.md`, and says *"written to context.md, please switch to the Overseer."* You go to the Overseer terminal and type:
@@ -127,6 +142,32 @@ These two phrases are the switch signals — the model reads `context.md` on rec
 (The `as-` naming is mnemonic: you state the role you're about to take. It's also faster to type than `from-` since `a` and `s` are adjacent on QWERTY.)
 
 Same semantics, less typing. Hand-typed phrases still work.
+
+### Let the sessions notify each other
+
+The two "walk over to the other terminal and type" steps above can be skipped. Claude Code supports cross-session messaging (`SendMessage` + `ListAgents`): with both terminals running, whichever side just wrote `context.md` notifies the other directly, and the other picks up via the full `/as-worker` / `/as-overseer` procedure.
+
+Two version floors: **macOS / Linux / WSL 2 need ≥ 2.1.224, native Windows ≥ 2.1.234.** Check a session with `/list-agents` (also `/peers`) — if the command isn't recognized, the session doesn't have the feature.
+
+The sender can compute the first two segments of the peer's name but not the third. So **run `ListAgents` before sending**, find the row whose name starts with `bili-worker-`, and send to the full name printed there. **Exactly one match** — otherwise fall back to the manual handoff. That lookup is part of the procedure, not troubleshooting.
+
+**Re-check before every send.** Don't reuse a name from an earlier lookup, and don't use a list your user pasted — a peer's name changes as soon as its terminal is restarted (observed: the user was looking at `claude-code-b7` while the tool already returned `claude-code-3a`). A name that matches exactly one live session delivers on the bare name; the `[ref]` suffix is only needed when several sessions share it. You can also `@`-mention a session in your own prompt to name the target directly.
+
+One iron rule: **a message only wakes the other side and points at the file. Decisions always go into `context.md`.**
+
+> This isn't fastidiousness. The core promise of this workflow is that either side can open a fresh session and reconstruct the entire decision chain from files alone. Messages are ephemeral; what doesn't reach a file didn't happen. Once decisions start travelling by message that promise is void — and it fails silently: everything works now, and the chain turns out to be broken only when someone goes back to trace it.
+
+When a send fails (peer terminal not running, name doesn't match, version or platform too old), **fall back to the manual handoff and don't retry.** That's what keeps this an optional accelerator rather than a new required path: when the automatic channel is down, the workflow degrades to exactly what it was before.
+
+**Optional: let the platform watch for you.** When the Overseer hands work off, it can pass `notify_when_idle` (≥ 2.1.236, same machine only) to be told once when the Worker next goes idle. The upside is that it doesn't depend on the Worker remembering to send anything; the cost is that it only says "idle", not "handoff ready" — you still read `context.md` to see whether a new handoff block exists.
+
+**Platform status:** cross-session messaging started out macOS- and Linux-only; native Windows caught up in 2.1.234, so all three are covered. Same-machine delivery goes over a local socket (a named pipe on Windows) and never touches Anthropic servers; **across machines** (say a VPS and your laptop) both ends must be connected to Remote Control and the message is relayed through Anthropic servers. Note that a session inside WSL 2 and a native Windows session on the same computer **can't see each other** — different home directories, different socket types.
+
+Organizing work *across* machines — using a shared git repository as the handoff medium, how addressing differs, and the Linux ↔ Windows line-ending/path/timezone traps — is covered separately in [`CROSS-MACHINE.md`](CROSS-MACHINE.md). You don't need it for same-machine use.
+
+> **A trap when testing:** a terminal spawned from inside a Claude Code session inherits the `CLAUDE_CODE_CHILD_SESSION` environment variable, and such a session **doesn't register as a peer** — it simply never appears in `ListAgents` (the terminal says `Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker`). You won't hit this typing `cc` in a clean terminal, but anyone scripting a test of this mechanism will, and it looks exactly like "the name doesn't match".
+
+**Don't expect it to drive an unattended loop.** A cross-session message sent to a session that skips permission prompts is held for your approval by design. What this mechanism saves is typing and context-switching — not watching.
 
 ### Trigger conditions (Worker → Overseer)
 
