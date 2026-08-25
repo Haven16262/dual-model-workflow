@@ -1,0 +1,7 @@
+# 两台机器（Linux / Windows）共用同一份 context.md 做交接，工作树里的字节
+# 必须一致：换行符一旦不一致，每次交接都会 diff 出整文件改动，"这一轮改了
+# 什么"就读不出来了——而这份工作流的复核全靠读 diff。
+#
+# 统一 LF（含 Windows 工作树）。本仓库没有 .bat/.cmd 这类必须 CRLF 的文件；
+# PowerShell 读 LF 没有问题。
+* text=auto eol=lf
