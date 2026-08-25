@@ -99,6 +99,10 @@ Windows filesystems are case-insensitive, Linux ones aren't. Two files differing
 
 Claude Code ships Git Bash, so the precheck script runs on both ends with the same command.
 
+#### 6. Prefer an HTTPS clone URL on a proxied Windows machine
+
+A TUN-mode proxy client can intercept port 22 and hand SSH a fake IP, so `git clone git@github.com:…` fails with something like `Connection closed by 198.18.x.x port 22` — an address from the proxy's fake-IP range, not GitHub. An HTTPS clone goes through unchanged. If you want SSH anyway, GitHub also serves it on 443 via `ssh.github.com`.
+
 ### What doesn't work across machines
 
 - **`notify_when_idle`** — the platform limits it to "your sessions on this machine". Subscribing to a peer's idle notice across machines isn't available; don't build it into a procedure.
@@ -226,6 +230,10 @@ Windows 文件系统大小写不敏感，Linux 敏感。两个只差大小写的
 #### 5. `security-scan.sh` 在 Windows 上走 Git Bash
 
 Claude Code 自带 Git Bash，预检脚本两端都能跑，命令一样。
+
+#### 6. 走代理的 Windows 机器优先用 HTTPS clone
+
+TUN 模式的代理客户端会接管 22 端口并给 SSH 一个 fake-IP，`git clone git@github.com:…` 于是报 `Connection closed by 198.18.x.x port 22` —— 那个地址来自代理的 fake-IP 段，不是 GitHub。换 HTTPS 直接就通。一定要用 SSH 的话，GitHub 在 443 上也有 `ssh.github.com`。
 
 ---
 
