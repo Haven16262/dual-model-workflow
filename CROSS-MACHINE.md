@@ -63,7 +63,7 @@ Conversely, **if you find your messages getting longer and starting to carry con
 
 Same-machine, you find the peer by the `<project-dir>-<role>-<topic>` prefix. **Across machines that scheme is not in play:**
 
-- The peer shows up under its **Remote Control name** (something like `msi-linear-snail`), not the session name it was launched with.
+- The peer shows up under its **Remote Control name** (observed: `msi-squishy-alpaca` — Claude Code derives it from the hostname), not the session name it was launched with.
 - When you send, the peer sees **your** Remote Control name as the sender. Its reply goes to that name.
 - So: **copy the `from` of the message you received** when replying. Don't assemble a name yourself.
 
@@ -193,7 +193,8 @@ It prompts even under `bypassPermissions`.
 
 同机靠 `<项目目录名>-<角色>-<话题>` 前缀找人。**跨机器这套不适用**：
 
-- 对方在列表里显示的是它的 **Remote Control 名字**（形如 `msi-linear-snail`），不是它启动时设的会话名。
+- 对方在列表里显示的是它的 **Remote Control 名字**（实测：`msi-squishy-alpaca` —— Claude Code 用主机名打头自动生成），不是它启动时设的会话名。
+- 换句话说，**跨机器时机器标识本来就在名字里**，四段式会话名的 `<机器标识>` 段是给人看会话列表用的，不是给寻址用的。
 - 你发过去，对方看到的发件人也是**你这边的 Remote Control 名字**。它回信就是回给这个名字。
 - 所以：**回复时直接抄收到消息的 `from`**，不要自己拼名字。
 

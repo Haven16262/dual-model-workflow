@@ -109,15 +109,16 @@ cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
 
-After you pick a role, the helper also asks for a **topic for this round** (optional, Enter to skip). Together with the project directory and the role it forms the session name, passed via `--name`, in three segments:
+After you pick a role, the helper also asks for a **topic for this round** (optional, Enter to skip). Together with the machine tag, the project directory, and the role it forms the session name, passed via `--name`, in four segments:
 
 ```
-<project-dir>-<role>-<topic>          # e.g. bili-overseer-login-rework
-<project-dir>-<role>-<MMDD-HHMM>      # fallback when you skip the topic, e.g. bili-worker-0820-1145
+<machine>-<project-dir>-<role>-<topic>        # e.g. vps-bili-overseer-login-rework
+<machine>-<project-dir>-<role>-<MMDD-HHMM>    # fallback when you skip the topic
 ```
 
 Each segment earns its place; drop one and something breaks:
 
+- **Machine tag** — read from `~/.claude/machine-tag`. It is *not* there to help the AI tell machines apart: across machines a peer shows up under its Remote Control name, which already carries the hostname. It is for **you**. The same git repository checked out on two machines has the same directory name, so without the prefix your session list on claude.ai and on your phone shows two byte-identical rows and you have to open one to find out which machine it is. No tag file, no prefix — the other three segments are unchanged.
 - **Project directory** — with two projects running the workflow at once, a fixed name like `worker` would deliver a handoff to the *other project's* Worker. Worse than no automation at all.
 - **Role** — tells the two terminals of one project apart, and is what a handoff is aimed at.
 - **Topic** — without it every launch of the same project produces an identical name, and the `/resume` picker fills with rows you can't tell apart. `--name` also **overrides** the summary title Claude Code would have generated on its own, so a fixed name doesn't just fail to help — it replaces a useful title with a useless one.
@@ -151,7 +152,7 @@ The two "walk over to the other terminal and type" steps above can be skipped. C
 
 Two version floors: **macOS / Linux / WSL 2 need ≥ 2.1.224, native Windows ≥ 2.1.234.** Check a session with `/list-agents` (also `/peers`) — if the command isn't recognized, the session doesn't have the feature.
 
-The sender can compute the first two segments of the peer's name but not the third. So **run `ListAgents` before sending**, find the row whose name starts with `bili-worker-`, and send to the full name printed there. **Exactly one match** — otherwise fall back to the manual handoff. That lookup is part of the procedure, not troubleshooting.
+The sender can compute the first three segments of the peer's name but not the last. So **run `ListAgents` before sending**, find the row whose name starts with `vps-bili-worker-`, and send to the full name printed there. **Exactly one match** — otherwise fall back to the manual handoff. That lookup is part of the procedure, not troubleshooting.
 
 **Re-check before every send.** Don't reuse a name from an earlier lookup, and don't use a list your user pasted — a peer's name changes as soon as its terminal is restarted (observed: the user was looking at `claude-code-b7` while the tool already returned `claude-code-3a`). A name that matches exactly one live session delivers on the bare name; the `[ref]` suffix is only needed when several sessions share it. You can also `@`-mention a session in your own prompt to name the target directly.
 
@@ -381,15 +382,16 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
 
-选完角色后,脚本还会问一句**本轮话题**(可选,回车跳过)。它和项目目录、角色一起构成会话名(通过 `--name`),格式三段:
+选完角色后,脚本还会问一句**本轮话题**(可选,回车跳过)。它和机器标识、项目目录、角色一起构成会话名(通过 `--name`),格式四段:
 
 ```
-<项目目录名>-<角色>-<本轮话题>       # 例:bili-overseer-登录态重构
-<项目目录名>-<角色>-<MMDD-HHMM>     # 回车跳过话题时的兜底,例:bili-worker-0820-1145
+<机器标识>-<项目目录名>-<角色>-<本轮话题>     # 例:vps-bili-overseer-登录态重构
+<机器标识>-<项目目录名>-<角色>-<MMDD-HHMM>   # 回车跳过话题时的兜底,例:vps-bili-worker-0820-1145
 ```
 
-三段各有各的用处,少一段都会出问题:
+四段各有各的用处,少一段都会出问题:
 
+- **机器标识**——取自 `~/.claude/machine-tag`。**不是**给 AI 分辨机器用的(跨机器时对方显示的是自带主机名的 Remote Control 名字),是给**人**用的:同一个 git 仓库在两台机器上目录名相同,不加前缀的话 claude.ai 和手机的会话列表里会出现两条逐字相同的条目。该文件不存在时不加这一段。
 - **项目目录名**——并行开两个项目时,固定叫 `worker` 会让交接消息投递到**另一个项目**的工作者那里,比没有自动化更糟。
 - **角色**——同一项目里区分两个终端,交接消息靠它定向。
 - **话题**——同一项目每次启动都重名的话,`/resume` 列表里会堆出一排一模一样的条目,你分不出哪个是哪次。`--name` 还会**覆盖** Claude Code 本来会自动生成的摘要标题,所以固定名字不只是没帮上忙,是把原本有用的标题换成了无用的。
@@ -423,7 +425,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 版本门槛分两档:**macOS / Linux / WSL 2 需 ≥ 2.1.224,原生 Windows 需 ≥ 2.1.234**。用 `/list-agents`(别名 `/peers`)自查:命令本身不认识就是没有这个功能。
 
-会话名的前两段(项目目录 + 角色)发送方算得出,第三段话题算不出。所以发消息前**跑一次 `ListAgents`**,找名字以 `bili-worker-` 开头的那一行,按行里印的完整名字发送;**恰好一条**才发,零条或多条一律回退人工。这一次查询是流程的一部分,不是故障排查。
+会话名的前三段(机器标识 + 项目目录 + 角色)发送方算得出,最后一段话题算不出。所以发消息前**跑一次 `ListAgents`**,找名字以 `vps-bili-worker-` 开头的那一行,按行里印的完整名字发送;**恰好一条**才发,零条或多条一律回退人工。这一次查询是流程的一部分,不是故障排查。
 
 名字唯一时直接按名字投递,不再需要先带 `[ref]` 确认(2.1.232 起)。你自己也可以在 prompt 里打 `@` 加名字前几个字母,从候选里挑一个会话点名——省掉让模型先查一遍。
 
