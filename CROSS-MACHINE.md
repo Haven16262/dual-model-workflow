@@ -67,6 +67,15 @@ Same-machine, you find the peer by the `<project-dir>-<role>-<topic>` prefix. **
 - When you send, the peer sees **your** Remote Control name as the sender. Its reply goes to that name.
 - So: **copy the `from` of the message you received** when replying. Don't assemble a name yourself.
 
+**Prefer the `from` over a name lookup — it is strictly more reliable.** Two ways a name fails that `from` doesn't:
+
+1. **The name changes.** Observed mid-session: a peer listed as `msi-squishy-alpaca` was renamed to `Direct communication`; the send failed on the old name and only a fresh `ListAgents` found it (the `[ref]` stayed the same).
+2. **The listing comes back incomplete.** Claude Code reads the Remote Control list newest-first and stops after a bounded number of pages, and it says so when it did not finish ("did not complete, a later listing retries"). Observed: a name-addressed send failed during such a listing, while addressing the incoming `from` succeeded on the first try.
+
+The `from` is handed to you at the moment of delivery. It cannot go stale between the lookup and the send, and it does not depend on a listing succeeding.
+
+> **A warning that is not a failure:** a successful cross-machine send can still come back with *"accepted by the server, but delivery is not confirmed: it has not reported that it can receive cross-session messages."* Observed alongside a message that did arrive and was replied to. Don't treat it as an error or resend on the strength of it.
+
 ### Linux ↔ Windows specifics
 
 #### 1. Line endings (pinned at the repository level)
@@ -197,6 +206,15 @@ It prompts even under `bypassPermissions`.
 - 换句话说，**跨机器时机器标识本来就在名字里**，四段式会话名的 `<机器标识>` 段是给人看会话列表用的，不是给寻址用的。
 - 你发过去，对方看到的发件人也是**你这边的 Remote Control 名字**。它回信就是回给这个名字。
 - 所以：**回复时直接抄收到消息的 `from`**，不要自己拼名字。
+
+**优先用 `from` 而不是查名字——它严格更可靠。** 名字有两种失效方式，`from` 都没有：
+
+1. **名字会变。** 实测：对方在列表里是 `msi-squishy-alpaca`，中途改名成 `Direct communication`，按旧名投递失败，重跑 `ListAgents` 才找到（`[ref]` 没变）。
+2. **列表可能拉不全。** Claude Code 读 Remote Control 列表是从新到旧、翻到一定页数就停，没读完时它会在返回里明说（"did not complete, a later listing retries"）。实测：正是在这种情况下按名字投递失败，而拿来信的 `from` 当 `to` 一次就通。
+
+`from` 是投递当场给你的，不会在「查到」和「发出」之间过期，也不依赖列表拉取成功。
+
+> **一句不是故障的警告：** 跨机器发送成功后仍可能返回 *"accepted by the server, but delivery is not confirmed: it has not reported that it can receive cross-session messages."* 实测该消息确实送达并收到了回信。别把它当错误，也别据此重发。
 
 ---
 
