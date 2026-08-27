@@ -34,7 +34,9 @@ The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-d
 
 ```
 templates/   # markdown templates — platform-neutral, shared by both platforms
-scripts/     # security-scan.sh — bash, runs on both platforms (Git Bash on Windows)
+scripts/     # security-scan.sh (bash, both platforms via Git Bash)
+#              worker_guard.py + cc_allow_once.py — Python, both platforms
+skills/      # allow-once — install into ~/.claude/skills/
 linux/       # bash helpers (cc / cc-ds / cc-init) — source into ~/.bashrc
 windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
 ```
@@ -169,6 +171,43 @@ Organizing work *across* machines — using a shared git repository as the hando
 
 **Don't expect it to drive an unattended loop.** A cross-session message sent to a session that skips permission prompts is held for your approval by design. What this mechanism saves is typing and context-switching — not watching.
 
+### The Worker permission guard
+
+A Worker session cannot reach Remote Control: `cc-ds` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely.
+
+The guard is a `PreToolUse` hook that denies those commands *before* the dialog opens, which is what makes "skip it and do something else" possible at all.
+
+| Class | Commands | Behavior |
+|---|---|---|
+| Hard deny | `git push` | No release path. The Worker commits, records state, and hands off to the Overseer, which reviews and publishes on its own authority. |
+| Deny + window | `ssh`, `chmod` | Queued automatically. You type `/allow-once` to open a 10-minute window; the Worker retries and the normal prompt fires. |
+
+The set mirrors the `ask` rules in your `settings.json` — those are the prompts the Worker can actually trip.
+
+Two properties worth stating:
+
+* **Opening the window is not authorization.** It only lets the prompt appear; permission still comes from you answering it.
+* **The model cannot open its own window.** The `allow-once` skill sets `disable-model-invocation: true`, and its `!` line runs at expansion time, before the model sees anything — so arming is a human act by construction.
+
+Install (both platforms — the scripts are Python, not shell):
+
+```bash
+cp scripts/worker_guard.py scripts/cc_allow_once.py ~/.claude/scripts/
+mkdir -p ~/.claude/skills/allow-once && cp skills/allow-once/SKILL.md ~/.claude/skills/allow-once/
+echo vps > ~/.claude/machine-tag        # or: msi, n1, ... — one short tag per machine
+```
+
+Then add the hook to the **Worker-only** settings file (`~/.claude/settings.deepseek.json`), never to `settings.json` — the Overseer must keep its normal prompts, since it is the session that can reach your phone:
+
+```json
+{ "matcher": "Bash",
+  "hooks": [{ "type": "command",
+              "command": "python3 -S \"$HOME/.claude/scripts/worker_guard.py\"",
+              "timeout": 10 }] }
+```
+
+On Windows, adjust the interpreter in both the hook command and `SKILL.md` if `python3` is not on PATH.
+
 ### Trigger conditions (Worker → Overseer)
 
 The Worker must stop and switch to the Overseer when:
@@ -267,7 +306,9 @@ MIT — see [LICENSE](LICENSE).
 
 ```
 templates/   # markdown 模板 —— 平台无关,两端共用
-scripts/     # security-scan.sh —— bash 脚本,两端都能跑(Windows 走 Git Bash)
+scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
+#              worker_guard.py + cc_allow_once.py —— Python,两端通用
+skills/      # allow-once —— 装进 ~/.claude/skills/
 linux/       # bash helper(cc / cc-ds / cc-init)—— source 进 ~/.bashrc
 windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
 ```
@@ -403,6 +444,43 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 > **测试时的坑:** 从一个 Claude Code 会话里 spawn 出来的终端会继承 `CLAUDE_CODE_CHILD_SESSION` 环境变量,那个会话**不会注册进 peer 列表**,`ListAgents` 里根本看不见(终端里会提示 `Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker`)。真人在干净终端里敲 `cc` 不会遇到,但脚本化验证这套机制时会栽进去,而且现象和"名字对不上"一模一样。
 
 **别指望它做无人值守自动循环。** 发给「已跳过权限确认」会话的跨会话消息会被扣住等人工批准(平台设计如此)。这套机制省的是打字和上下文切换,不省盯着——这跟本工作流「人是检查点」的前提是一致的。
+
+### 工作者权限守卫
+
+工作者会话**连不上 Remote Control**：`cc-ds` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。
+
+守卫是个 `PreToolUse` 钩子，在弹窗打开**之前**把这些命令拒掉——「跳过去做别的」这个选项只有这样才存在。
+
+| 类别 | 命令 | 行为 |
+|---|---|---|
+| 硬拒 | `git push` | 没有放行通道。工作者提交、记录状态、交接给全局者，由全局者复审后自行发布 |
+| 拒 + 窗口 | `ssh`、`chmod` | 自动入队。你敲 `/allow-once` 开 10 分钟窗口，工作者重试，正常弹窗照常出现 |
+
+拦截集合刻意与 `settings.json` 里的 `ask` 规则对齐——那三条才是工作者真正会撞上的弹窗来源。
+
+两条值得写明的性质：
+
+* **开窗不等于授权。** 它只让弹窗能弹出来，权限仍然来自你在弹窗上点的那一下。
+* **模型不能给自己开窗。** `allow-once` skill 设了 `disable-model-invocation: true`，其 `!` 行在展开阶段执行、早于模型看到任何内容——开窗在结构上就是人的动作。
+
+安装（两端通用，脚本是 Python 不是 shell）：
+
+```bash
+cp scripts/worker_guard.py scripts/cc_allow_once.py ~/.claude/scripts/
+mkdir -p ~/.claude/skills/allow-once && cp skills/allow-once/SKILL.md ~/.claude/skills/allow-once/
+echo vps > ~/.claude/machine-tag        # 或 msi / n1 …… 每台机器一个短标识
+```
+
+然后把钩子加进**只有工作者加载**的那个设置文件（`~/.claude/settings.deepseek.json`），**绝不要加进 `settings.json`**——全局者必须保留它的正常弹窗，因为它才是能推到你手机的那个会话：
+
+```json
+{ "matcher": "Bash",
+  "hooks": [{ "type": "command",
+              "command": "python3 -S \"$HOME/.claude/scripts/worker_guard.py\"",
+              "timeout": 10 }] }
+```
+
+Windows 上若 `python3` 不在 PATH，钩子命令和 `SKILL.md` 里的解释器都要相应调整。
 
 ### 触发切换的条件(工作者 → 全局者)
 
