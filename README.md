@@ -183,7 +183,7 @@ The guard is a `PreToolUse` hook that denies those commands *before* the dialog 
 | Hard deny | `git push` | No release path. The Worker commits, records state, and hands off to the Overseer, which reviews and publishes on its own authority. |
 | Deny + window | `ssh`, `chmod` | Queued automatically. You type `/allow-once` to open a 10-minute window; the Worker retries and the normal prompt fires. |
 
-The set mirrors the `ask` rules in your `settings.json` — those are the prompts the Worker can actually trip.
+The set mirrors the `ask` rules in the *reference* `settings.json` (`chmod`, `ssh`, `git push`) — on that machine those are the only prompts a Worker can trip. **Your machine may have no `ask` rules at all**, in which case these commands still prompt through the default flow outside auto mode, and the guard is then the *only* thing standing between the Worker and an unanswerable dialog. Check your own rules before assuming the two lists line up.
 
 Two properties worth stating:
 
@@ -207,7 +207,11 @@ Then add the hook to the **Worker-only** settings file (`~/.claude/settings.deep
               "timeout": 10 }] }
 ```
 
-On Windows, adjust the interpreter in both the hook command and `SKILL.md` if `python3` is not on PATH.
+On Windows, **write the interpreter's full path** in both the hook command and `SKILL.md` — for example `E:/Anaconda/python.exe`. Do not assume `python3` works because it resolves: on a default Windows install `python3` is a Microsoft Store stub that sits on PATH, is not an interpreter, and exits 9009 with *"Python was not found"*. A hook pointed at it fails, and a failing hook is a **fail-open** hook. Bare `python` may work in Git Bash and still not work from the hook, whose PATH is not Bash's.
+
+Inside `SKILL.md` the interpreter appears **twice** — in `allowed-tools` and in the `!` line — and the two must match *character for character*. Claude Code checks the injected command against the rule and aborts the whole invocation when it doesn't come back `allow`, so editing one and forgetting the other doesn't degrade the skill, it kills it.
+
+**Encoding matters here too.** These scripts pin `sys.stdout` to UTF-8 in code rather than relying on `-X utf8` in the hook command, because Claude Code parses hook stdout as UTF-8 while Python defaults to the locale encoding (cp936 on a Simplified Chinese Windows). When that mismatch happens the JSON fails to parse, `permissionDecision` is lost, and the command runs. **A guard that fails open is worse than no guard** — it makes people believe `git push` was blocked when it wasn't. The test suite has a dedicated case for this; don't skip it.
 
 **Linux users: check that your `cc-ds` actually passes the file.** The endpoint comes from environment variables there, so `settings.deepseek.json` is optional and easy to forget — and a hook in a file nobody loads fails *silently*. The helper in `linux/dual-model.sh` passes it when it exists; if you are running a copy sourced before this feature landed, re-source it.
 
@@ -468,7 +472,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 | 硬拒 | `git push` | 没有放行通道。工作者提交、记录状态、交接给全局者，由全局者复审后自行发布 |
 | 拒 + 窗口 | `ssh`、`chmod` | 自动入队。你敲 `/allow-once` 开 10 分钟窗口，工作者重试，正常弹窗照常出现 |
 
-拦截集合刻意与 `settings.json` 里的 `ask` 规则对齐——那三条才是工作者真正会撞上的弹窗来源。
+拦截集合刻意与**参考配置**的 `settings.json` 里那三条 `ask` 规则对齐（`chmod` / `ssh` / `git push`）——在那台机器上它们是工作者唯一会撞上的弹窗来源。**你的机器可能一条 `ask` 规则都没有**，那时这些命令在非 auto 模式下走默认弹窗流程照样会弹，而守卫就成了工作者与「没人能答的对话框」之间唯一的东西。别默认两边的清单对得上，先查自己的规则。
 
 两条值得写明的性质：
 
@@ -492,7 +496,11 @@ echo vps > ~/.claude/machine-tag        # 或 msi / n1 …… 每台机器一个
               "timeout": 10 }] }
 ```
 
-Windows 上若 `python3` 不在 PATH，钩子命令和 `SKILL.md` 里的解释器都要相应调整。
+Windows 上钩子命令和 `SKILL.md` 里都要**写解释器的完整路径**，例如 `E:/Anaconda/python.exe`。不要因为 `python3` 能解析就认为它可用：默认 Windows 装机环境里 `python3` 是微软商店的占位符，**在 PATH 上但不是解释器**，退出码 9009 并提示 *"Python was not found"*。钩子指向它就会失败，而失败的钩子是**失败放行**的钩子。裸 `python` 在 Git Bash 里可能好用，从钩子里却未必——钩子执行时的 PATH 不是 Bash 那份。
+
+`SKILL.md` 里解释器出现**两次**——`allowed-tools` 里一次，`!` 行里一次——两处必须**逐字一致**。Claude Code 会拿注入的命令去比对规则，比对结果不是 `allow` 就**中止整个调用**：改了一处漏了另一处，不是让 skill 变差，是让它彻底失效。
+
+**编码同样是个坑。** 这两个脚本在代码里把 `sys.stdout` 定死成 UTF-8，而不是靠钩子命令写 `-X utf8`：Claude Code 按 UTF-8 解析钩子 stdout，而 Python 默认走 locale 编码（简中 Windows 是 cp936）。一旦错开，JSON 解析失败、`permissionDecision` 丢失、命令照常执行。**失败放行的守卫比没有守卫更危险**——它让人以为 `git push` 被挡住了，其实没有。测试套件里有专门一条查这个，别跳过。
 
 **Linux 用户注意确认 `cc-ds` 真的传了这个文件。** Linux 侧端点走环境变量，`settings.deepseek.json` 是可选的、很容易漏——而钩子写在一个没人加载的文件里是**静默失效**，不会报错。`linux/dual-model.sh` 里的 helper 在文件存在时会传；如果你 source 的是这个功能之前的旧副本，重新 source 一次。
 

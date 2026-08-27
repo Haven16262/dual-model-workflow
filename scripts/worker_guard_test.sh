@@ -14,17 +14,31 @@ export CLAUDE_PROJECT_DIR="${TMPDIR:-/tmp}/worker-guard-selftest"
 mkdir -p "$CLAUDE_PROJECT_DIR"
 pass=0; fail=0
 
+# 输入输出两端都显式走 UTF-8 字节，绝不依赖解释器的 locale。
+#
+# 这不是洁癖。原来两端都用 `print` / `sys.stdin.read()`，在简中 Windows 上是
+# python(cp936) 管到 python(cp936)：自洽地错着，22 条分类用例全过，却掩盖了
+# 「Claude Code 按 UTF-8 读钩子 stdout、解析失败、守卫静默失败放行」这个真
+# 故障。自测用同一个解释器读自己的输出，天然测不出编码问题。
+mkjson() {
+  "$PY" -c "
+import json, sys
+sys.stdout.buffer.write(json.dumps(
+    {'tool_name': 'Bash', 'tool_input': {'command': sys.argv[1]}}).encode('utf-8'))" "$1"
+}
+
 cls() {
-  "$PY" -c "import json,sys;print(json.dumps({'tool_name':'Bash','tool_input':{'command':sys.argv[1]}}))" "$1" \
-  | "$PY" -S "$GUARD" \
-  | "$PY" -c "
+  mkjson "$1" | "$PY" -S "$GUARD" | "$PY" -c "
 import sys, json
-d = sys.stdin.read()
-if not d:
-    print('pass-through')
-else:
-    r = json.loads(d)['hookSpecificOutput']['permissionDecisionReason']
-    print('hard-deny' if '没有放行通道' in r else 'queued')"
+raw = sys.stdin.buffer.read()
+if not raw:
+    print('pass-through'); raise SystemExit
+try:
+    d = raw.decode('utf-8')            # 严格解码：模拟 Claude Code 的读法
+except UnicodeDecodeError as e:
+    print('NOT-UTF8: %s' % e); raise SystemExit
+r = json.loads(d)['hookSpecificOutput']['permissionDecisionReason']
+print('hard-deny' if '没有放行通道' in r else 'queued')"
 }
 
 t() {
@@ -60,6 +74,19 @@ t pass-through "$(printf 'cat > n.md <<EOF\nssh havenn1 是个例子\nEOF')"
 t pass-through "$(printf "cat > a.md <<'MD'\nchmod 777 /x\nMD")"
 # heredoc 结束之后的真命令仍要抓到
 t hard-deny "$(printf 'cat > d.md <<EOF\ntext\nEOF\ngit push')"
+
+# 编码：deny 的 JSON 必须是合法 UTF-8 字节流。
+# 单独列一条而不是靠上面的用例兜住 —— 上面测的是「分类对不对」，这条测的是
+# 「输出能不能被 Claude Code 读进去」。分类全对但输出不是 UTF-8 时，守卫是
+# 失败放行的，而失败放行比不装守卫更危险：它让人以为 push 被挡住了。
+if mkjson "git push origin main" | "$PY" -S "$GUARD" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+  pass=$((pass+1))
+else
+  fail=$((fail+1))
+  echo "  ✗ deny 输出不是合法 UTF-8 —— 守卫会静默失败放行"
+  echo "    Windows 上多为 locale 编码(cp936)所致；worker_guard.py 应已用"
+  echo "    sys.stdout.reconfigure(encoding='utf-8') 定死，检查那段是否生效"
+fi
 
 rm -f "$HOME/.claude/worker-guard/"*.queue "$HOME/.claude/worker-guard/"*.window 2>/dev/null
 rmdir "$CLAUDE_PROJECT_DIR" 2>/dev/null

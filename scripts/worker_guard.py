@@ -14,6 +14,15 @@ WINDOW_SECONDS = 600
 QUEUE_MAX_AGE = 86400
 NOTIFY_THRESHOLD = 3
 
+# Windows 上 Python 的管道输出默认走 locale 编码（简中系统是 cp936），而本文件
+# 的 deny reason 全是中文。Claude Code 按 UTF-8 解析钩子 stdout，解析失败会丢掉
+# permissionDecision —— 守卫**静默失败放行**，这是它最坏的失效方式。
+# 在脚本里定死，而不是靠钩子命令写对 -X utf8：调用方式有好几种，脚本只有一份。
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 # 按「命令位置」判断，不做子串匹配：子串匹配会把 `git log --grep push`、
 # `echo git push`、`git config push.default` 全部误判成 push——而硬拒路径没有
 # 逃生舱，误伤等于把工作者永久卡死在一条无害命令上。
@@ -137,9 +146,12 @@ def deny(reason):
 
 
 def main():
+    # 同理读 stdin：命令原文可能含中文，按 locale 解码会崩或乱码。显式按字节读。
+    # 解析失败时放行而不是拦截：守卫是 UX 层，真正的权限门是 settings 里的规则，
+    # 让一个解析 bug 把工作者所有命令都拦死，代价远大于漏掉一条。
     try:
-        data = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
+        data = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
         sys.exit(0)
     if data.get("tool_name") != "Bash":
         sys.exit(0)
