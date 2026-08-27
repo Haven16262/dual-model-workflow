@@ -50,6 +50,11 @@ function _cc_workflow_prompt {
   $script:CC_ROLE_PROMPT = ""
   $script:CC_SESSION_NAME = ""
   if (-not (Test-Path "WORKFLOW.md")) { return }
+  # 机器标识：跨机器时 claude.ai / 手机的会话列表是两台机器混排的，而同一个
+  # git 仓库在两端目录名相同 → slug 相同 → 三段式名字逐字撞车。前缀（不是后缀）
+  # 才能让搭档前缀匹配继续工作。文件不存在就不加前缀，别的机器不受影响。
+  $tag = (Get-Content -Raw "$env:USERPROFILE\.claude\machine-tag" -ErrorAction SilentlyContinue) -replace '[^A-Za-z0-9]', ''
+  if ($tag) { $tag = "$tag-" }
   $slug = _cc_session_slug
   Write-Host ""
   Write-Host "  检测到双模型工作流项目" -ForegroundColor Cyan
@@ -57,8 +62,8 @@ function _cc_workflow_prompt {
   $role = Read-Host "  当前角色 [1/2]"
   $peer = ""
   switch ($role) {
-    "1" { $script:CC_SESSION_NAME = "$slug-overseer"; $peer = "$slug-worker-" }
-    "2" { $script:CC_SESSION_NAME = "$slug-worker";   $peer = "$slug-overseer-" }
+    "1" { $script:CC_SESSION_NAME = "$tag$slug-overseer"; $peer = "$tag$slug-worker-" }
+    "2" { $script:CC_SESSION_NAME = "$tag$slug-worker";   $peer = "$tag$slug-overseer-" }
     default {
       Write-Host ""
       Write-Host "  未选择角色——不注入提示，也不设置会话名。" -ForegroundColor DarkGray
