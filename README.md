@@ -35,7 +35,7 @@ The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-d
 ```
 templates/   # markdown templates — platform-neutral, shared by both platforms
 scripts/     # security-scan.sh (bash, both platforms via Git Bash)
-#              worker_guard.py + cc_allow_once.py — Python, both platforms
+#              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 skills/      # allow-once — install into ~/.claude/skills/
 linux/       # bash helpers (cc / cc-ds / cc-init) — source into ~/.bashrc
 windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
@@ -209,6 +209,16 @@ Then add the hook to the **Worker-only** settings file (`~/.claude/settings.deep
 
 On Windows, adjust the interpreter in both the hook command and `SKILL.md` if `python3` is not on PATH.
 
+**Linux users: check that your `cc-ds` actually passes the file.** The endpoint comes from environment variables there, so `settings.deepseek.json` is optional and easy to forget — and a hook in a file nobody loads fails *silently*. The helper in `linux/dual-model.sh` passes it when it exists; if you are running a copy sourced before this feature landed, re-source it.
+
+Verify the install:
+
+```bash
+bash scripts/worker_guard_test.sh          # or: bash scripts/worker_guard_test.sh python
+```
+
+22 classification cases, including the ones that motivated the parser: `git log --grep push` and a heredoc body containing a `git push` example must **not** be blocked, because the hard-deny path has no release valve and a false positive strands the Worker on a harmless command.
+
 ### Trigger conditions (Worker → Overseer)
 
 The Worker must stop and switch to the Overseer when:
@@ -308,7 +318,7 @@ MIT — see [LICENSE](LICENSE).
 ```
 templates/   # markdown 模板 —— 平台无关,两端共用
 scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
-#              worker_guard.py + cc_allow_once.py —— Python,两端通用
+#              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 skills/      # allow-once —— 装进 ~/.claude/skills/
 linux/       # bash helper(cc / cc-ds / cc-init)—— source 进 ~/.bashrc
 windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
@@ -483,6 +493,16 @@ echo vps > ~/.claude/machine-tag        # 或 msi / n1 …… 每台机器一个
 ```
 
 Windows 上若 `python3` 不在 PATH，钩子命令和 `SKILL.md` 里的解释器都要相应调整。
+
+**Linux 用户注意确认 `cc-ds` 真的传了这个文件。** Linux 侧端点走环境变量，`settings.deepseek.json` 是可选的、很容易漏——而钩子写在一个没人加载的文件里是**静默失效**，不会报错。`linux/dual-model.sh` 里的 helper 在文件存在时会传；如果你 source 的是这个功能之前的旧副本，重新 source 一次。
+
+装完验证：
+
+```bash
+bash scripts/worker_guard_test.sh          # 或: bash scripts/worker_guard_test.sh python
+```
+
+22 条分类用例，其中包括催生这个解析器的那几条：`git log --grep push`、以及 heredoc 正文里写着 `git push` 例子的情况，**都不能**被拦——硬拒路径没有逃生舱，误伤会把工作者卡死在一条无害命令上。
 
 ### 触发切换的条件(工作者 → 全局者)
 

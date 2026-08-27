@@ -59,7 +59,7 @@ On tokens: **the message isn't the expensive part — rebuilding context on the 
 
 Conversely, **if you find your messages getting longer and starting to carry content, the channel isn't too small — the process has drifted.** Content belongs in the file. The platform refuses oversized messages anyway.
 
-### Addressing: the three-segment session name doesn't apply
+### Addressing: the four-segment session name doesn't apply
 
 Same-machine, you find the peer by the `<project-dir>-<role>-<topic>` prefix. **Across machines that scheme is not in play:**
 
@@ -189,7 +189,7 @@ It prompts even under `bypassPermissions`.
 
 ---
 
-### 寻址：跨机器不用三段式会话名
+### 寻址：跨机器不用四段式会话名
 
 同机靠 `<项目目录名>-<角色>-<话题>` 前缀找人。**跨机器这套不适用**：
 

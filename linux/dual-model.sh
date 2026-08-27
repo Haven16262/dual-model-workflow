@@ -122,6 +122,14 @@ cc-ds() {
     return 1
   fi
   _cc_workflow_prompt
+  # Worker-only settings overlay. On Linux the DeepSeek endpoint comes from the
+  # environment variables below, so this file is OPTIONAL and carries only hooks
+  # (the worker permission guard, a vision co-pilot, ...). Windows needs it for
+  # the endpoint itself and errors when missing; here a missing file must not
+  # stop the Worker from launching, hence the existence check. Without this flag
+  # anything you put in settings.deepseek.json is silently never loaded.
+  local _ds_settings=~/.claude/settings.deepseek.json
+  [ -f "$_ds_settings" ] || _ds_settings=""
   ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
   ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
   ANTHROPIC_MODEL="deepseek-v4-pro[1m]" \
@@ -129,7 +137,8 @@ cc-ds() {
   ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-v4-pro[1m]" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash \
   CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash \
-  claude ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
+  claude ${_ds_settings:+--settings} ${_ds_settings:+"$_ds_settings"} \
+         ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
          ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
