@@ -11,12 +11,20 @@
 #      全局者 cc 直接用 ~\.claude\settings.json 的默认配置。
 #      注意: 不要改回"整体覆盖 settings.json"的做法——那个文件是所有 Claude Code 进程共享的，
 #      一个终端切换会热重载到其它正在运行的会话上，导致两个终端串成同一个模型。
-#   3. 模板放在 $env:DUAL_MODEL_TEMPLATES（默认 ~\.dual-model\templates）——
-#      把本仓库的 templates\ 整个复制过去（含 .claude\ 隐藏目录）。
+#   3. 模板默认就用本仓库的 templates\（按本脚本位置推算），git pull 即生效，无需复制。
+#      要用别处的模板才设 $env:DUAL_MODEL_TEMPLATES。
 #
 # 命名说明: Windows 上没有 /usr/bin/cc 遮蔽问题，函数名保持 cc / cc-ds / cc-init 与 Linux 版一致。
 
-$script:DUAL_MODEL_TEMPLATES = if ($env:DUAL_MODEL_TEMPLATES) { $env:DUAL_MODEL_TEMPLATES } else { "$env:USERPROFILE\.dual-model\templates" }
+# 模板源：环境变量优先；默认指向本仓库的 templates\，按脚本自身位置推算，不写死机器路径。
+# 不再回退到 ~\.dual-model\templates —— 那是一份独立拷贝，git pull 不会更新它，
+# 于是每个新建项目都静默拿到旧版模板（本机那份停在 2026-07-12，缺全部触发器）。
+# VPS 侧同款缺口（cc-init 指向 ~/.claude/scripts/workflow-templates）已于 2026-09-06 修掉。
+$script:DUAL_MODEL_TEMPLATES = if ($env:DUAL_MODEL_TEMPLATES) {
+  $env:DUAL_MODEL_TEMPLATES
+} else {
+  Join-Path (Split-Path $PSScriptRoot -Parent) 'templates'
+}
 
 # 会话名由项目目录推导，不用固定字符串。否则两个项目同时跑工作流时，
 # 两边的会话都叫 "worker"，交接消息可能投进错的项目——比没有自动化更糟。
@@ -146,6 +154,7 @@ function cc-init {
   Copy-Item "$tpl\WORKFLOW.md" .\
   Copy-Item "$tpl\CLAUDE.md" .\
   Copy-Item "$tpl\context.md" .\
+  Copy-Item "$tpl\context_history.md" .\
   if (Test-Path "$tpl\.claude") {
     New-Item -ItemType Directory -Force .claude\commands, .claude\agents | Out-Null
     Get-ChildItem "$tpl\.claude\commands\*.md" -ErrorAction SilentlyContinue | ForEach-Object {
@@ -159,6 +168,7 @@ function cc-init {
   Write-Host "  WORKFLOW.md          — 角色定义和切换规则"
   Write-Host "  CLAUDE.md            — 告知模型启动时读取工作流"
   Write-Host "  context.md           — 模型间共享上下文"
+  Write-Host "  context_history.md   — 归档落点（空表头，phase 关闭时追加）"
   if (Test-Path ".claude\commands") {
     Write-Host "  .claude\commands\    — 角色切换 slash 命令（/as-overseer、/as-worker）"
   }
