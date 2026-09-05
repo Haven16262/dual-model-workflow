@@ -19,9 +19,14 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
    - **本会话首次时顺带对一次版本**(每会话一次,不是每轮)。取
      `T="${DUAL_MODEL_TEMPLATES:-/root/workspace/core/dual-model-workflow/templates}"`
      (后半是 VPS 上的仓库路径,其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖),然后
-     `diff -q WORKFLOW.md "$T/WORKFLOW.md"`,以及 `.claude/commands/` 下的
-     `as-overseer.md` 和 `as-worker.md` 各与 `"$T/.claude/commands/"` 同名文件对比。
-     (`as-worker.md` 也要比 —— 它同样带检查项,副本旧了会静默丢掉)
+     对这四个文件各跑一次 `diff -q <本地路径> "$T/<同样的相对路径>"`:
+     `WORKFLOW.md`、`.claude/commands/as-overseer.md`、`.claude/commands/as-worker.md`、
+     `.claude/agents/critic.md`
+   - 后三个都带检查项或审查规则,**副本旧了会静默丢掉**,所以都要比。
+   - ⚠️ **`.claude/agents/critic.md` 必须是实体文件,不许换成软链。** 它随仓库走,异地
+     clone(如 music-player 的 Windows 端)拿到的软链会指向一个不存在的本机路径,且不报错。
+     用户级 `~/.claude/agents/critic.md` 反过来:那份不入库、不离开本机,才适合用软链。
+     **副本该不该消灭,取决于它会不会离开这台机器。**
    - **有差异不要自己同步** —— 项目副本可能是有意改的,也可能反而是模板旧了。
      只在第 3 步报一声,刷新方向由用户定。
 2. **读 context.md**:
