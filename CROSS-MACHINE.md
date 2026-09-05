@@ -112,6 +112,14 @@ Claude Code ships Git Bash, so the precheck script runs on both ends with the sa
 
 A TUN-mode proxy client can intercept port 22 and hand SSH a fake IP, so `git clone git@github.com:…` fails with something like `Connection closed by 198.18.x.x port 22` — an address from the proxy's fake-IP range, not GitHub. An HTTPS clone goes through unchanged. If you want SSH anyway, GitHub also serves it on 443 via `ssh.github.com`.
 
+#### 7. Fetch before writing into a mirrored directory
+
+If one end keeps a mirror of the shared repo (a working copy that is synced by hand rather than by git), **`git fetch` and check for unsynced commits from the other end before you overwrite anything in it.** A mirror has no conflict detection: overwriting reports nothing, and the later write simply wins.
+
+**Why this is a rule and not a note:** the person who overwrites is rarely thinking "I am writing into a mirror" — they are thinking "I am pushing up what I just aligned locally". Those are the same action, and only one of them sounds dangerous. This exact miss happened on 2026-09-06: the msi end wrote this very warning to the VPS end two rounds earlier, then copied over `windows端/` before fetching and only afterwards found three unpulled commits, one of which had changed a file it had just overwritten. Nothing was lost, purely because the content happened to be identical.
+
+**A warning you write for the other side does not install itself on your own.** That is why it lives here, on the path everyone about to touch a mirror has to read, instead of in a message.
+
 ### What doesn't work across machines
 
 - **`notify_when_idle`** — the platform limits it to "your sessions on this machine". Subscribing to a peer's idle notice across machines isn't available; don't build it into a procedure.
@@ -253,6 +261,14 @@ Claude Code 自带 Git Bash，预检脚本两端都能跑，命令一样。
 #### 6. 走代理的 Windows 机器优先用 HTTPS clone
 
 TUN 模式的代理客户端会接管 22 端口并给 SSH 一个 fake-IP，`git clone git@github.com:…` 于是报 `Connection closed by 198.18.x.x port 22` —— 那个地址来自代理的 fake-IP 段，不是 GitHub。换 HTTPS 直接就通。一定要用 SSH 的话，GitHub 在 443 上也有 `ssh.github.com`。
+
+#### 7. 写镜像目录之前先 fetch
+
+如果某一端为共享仓库留了一份镜像（靠人工同步、不走 git 的工作副本），**覆盖它里面任何东西之前，先 `git fetch` 确认对端没有未同步的提交。** 镜像目录没有冲突检测：覆盖不会报任何错，后写的直接盖掉。
+
+**为什么这是一条规则而不是一句提醒：** 动手覆盖的人几乎不会想着「我在写镜像目录」，他想的是「把本地对齐好的推上去」。这是同一个动作，但只有其中一种说法听起来危险。2026-09-06 真的漏了一次：msi 端两轮前刚把这条警告发给 VPS 端，轮到自己收尾时先 `cp` 覆盖了 `windows端/` 的两个文件、之后才 fetch，才发现对端已推三个提交，其中一个改的正是它刚覆盖掉的文件之一。没造成损失，纯粹因为内容碰巧相同。
+
+**警告写给对方的时候，不会自动装到自己身上。** 所以它写在这里 —— 每个要动镜像的人必经的地方 —— 而不是留在一条消息里。
 
 ---
 
