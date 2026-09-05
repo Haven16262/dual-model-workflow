@@ -156,6 +156,7 @@ cc-init() {
   cp "$DUAL_MODEL_TEMPLATES/WORKFLOW.md" ./
   cp "$DUAL_MODEL_TEMPLATES/CLAUDE.md" ./
   cp "$DUAL_MODEL_TEMPLATES/context.md" ./
+  cp "$DUAL_MODEL_TEMPLATES/context_history.md" ./
   if [ -d "$DUAL_MODEL_TEMPLATES/.claude" ]; then
     mkdir -p .claude/commands .claude/agents
     cp -n "$DUAL_MODEL_TEMPLATES/.claude/commands/"*.md .claude/commands/ 2>/dev/null
@@ -165,6 +166,7 @@ cc-init() {
   echo "  WORKFLOW.md          — role definitions and switch rules"
   echo "  CLAUDE.md            — tells the model to read the workflow on startup"
   echo "  context.md           — shared context between the two models"
+  echo "  context_history.md   — archive landing spot (empty header; appended at phase close)"
   if [ -d .claude/commands ]; then
     echo "  .claude/commands/    — role-switch slash commands (/as-overseer, /as-worker)"
   fi
