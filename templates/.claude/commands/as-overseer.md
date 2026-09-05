@@ -18,8 +18,16 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
 1. **读 WORKFLOW.md 顶部**(若本会话尚未读过),确认自己作为全局者的职责与原则
    - **本会话首次时顺带对一次版本**(每会话一次,不是每轮)。取
      `T="${DUAL_MODEL_TEMPLATES:-/root/workspace/core/dual-model-workflow/templates}"`
-     (后半是 VPS 上的仓库路径,其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖),然后
-     对这四个文件各跑一次 `diff -q --strip-trailing-cr <本地路径> "$T/<同样的相对路径>"`:
+     (后半是 VPS 上的仓库路径,其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖)。
+   - ⚠️ **先判 `T` 在不在**(`[ -d "$T" ]`)。**不在就跳过这一步**,并在第 3 步报一句:
+     > (版本检查跳过:模板路径未配置。设 `DUAL_MODEL_TEMPLATES` 指向
+     > dual-model-workflow 仓库的 `templates/`)
+
+     **不要硬跑那四条 diff** —— 上面那个回退值是 VPS 的绝对路径,在任何别的机器上
+     会吐四行 `No such file or directory`。那不是「有差异」,是配置缺失;而四行看不懂
+     的报错和噪音等效。**把静默/费解的失败换成一句照着做就能修的话。**
+   - `T` 存在时,对这四个文件各跑一次
+     `diff -q --strip-trailing-cr <本地路径> "$T/<同样的相对路径>"`:
      `WORKFLOW.md`、`.claude/commands/as-overseer.md`、`.claude/commands/as-worker.md`、
      `.claude/agents/critic.md`
    - 后三个都带检查项或审查规则,**副本旧了会静默丢掉**,所以都要比。
