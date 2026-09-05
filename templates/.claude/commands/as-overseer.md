@@ -1,5 +1,5 @@
 ---
-description: 切换到全局者角色 — 复审工作者最新交接,做架构和安全决策
+description: 切换到全局者角色 —— 读 context.md 里工作者的最新交接并复审,做架构与安全决策。用户在全局者终端手打 /as-overseer,或收到工作者发来的「已写入 context.md」跨会话通知时使用。
 ---
 
 # /as-overseer — 接手全局者角色
@@ -16,14 +16,46 @@ description: 切换到全局者角色 — 复审工作者最新交接,做架构�
 ## 执行步骤
 
 1. **读 WORKFLOW.md 顶部**(若本会话尚未读过),确认自己作为全局者的职责与原则
+   - **本会话首次时顺带对一次版本**(每会话一次,不是每轮)。取
+     `T="${DUAL_MODEL_TEMPLATES:-/root/workspace/core/dual-model-workflow/templates}"`
+     (后半是 VPS 上的仓库路径,其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖),然后
+     `diff -q WORKFLOW.md "$T/WORKFLOW.md"`,以及 `.claude/commands/` 下的
+     `as-overseer.md` 和 `as-worker.md` 各与 `"$T/.claude/commands/"` 同名文件对比。
+     (`as-worker.md` 也要比 —— 它同样带检查项,副本旧了会静默丢掉)
+   - **有差异不要自己同步** —— 项目副本可能是有意改的,也可能反而是模板旧了。
+     只在第 3 步报一声,刷新方向由用户定。
 2. **读 context.md**:
    - 优先看顶部 `## 当前状态` 区块
    - 再看最新的历史记录,定位最近一条「工作者」或「工作者 → 全局者」条目
-3. **复述确认**(发给用户,1-2 句):
-   > 我是全局者。最新交接:[摘要]
+   - 顺带 `wc -l context.md context_history.md` 拿到两个行数
+3. **复述确认**(发给用户,1-2 句),**行数无条件带上**:
+   > 我是全局者。最新交接:[摘要](context NNN / history NNNN 行)
+
+   `context.md` ≥ 300 行时追加(WORKFLOW.md「长度规则」的软上限):
+   > (context 334 行 ⚠️ 超软上限,下一轮决策前先清理:旧轮迁 `context_history.md`)
+
+   `context_history.md` ≥ 1800 行时追加:
+   > (history 2407 行 ⚠️ 建议做一次阶段封存,见 WORKFLOW.md「Phase 关闭时的归档操作」)
+
+   ⚠️ **特例:`context_history.md` 不存在而 `context.md` 已超线** —— 说明三层历史机制
+   在本项目从未启动过,历史一直堆在 `context.md` 里。这种漏法没有「变长」的过程可察觉,
+   从第一天起就是那样。此时先建 `context_history.md` 再迁,别只做清理。
+
+   本会话首次、且第 1 步的版本对比有差异时,再追加一句:
+   > (工作流副本与模板不一致:WORKFLOW.md ⚠️ —— 要先同步吗?)
+
+   **不是错误,是信号** —— 不阻塞本轮工作,阈值本身也是弹性的。但**行数这一段是必发的**:
+   判定条件放在输出之后,不放在输出之前 —— 写成「超线才提」等于漏检时悄无声息,
+   写成「无条件打印」则漏检表现为复述句里少一段,用户当场看得见。
 4. **若工作者交付了完成阶段(有「关键决策点」四项)**:
    - 核对四项:架构/接口变动、安全相关、偏离原计划、未解决疑虑
-   - **若「安全相关」非空 → 必须 invoke critic 子代理**(`.claude/agents/critic.md`)对工作者点名的相关文件做结构化审查;凭其报告判断,不得仅凭摘要放行
+   - **若「安全相关」非空 → 必须做结构化安全审查**,凭报告判断,不得仅凭摘要放行:
+     - 首选 invoke `critic` 子代理(`.claude/agents/critic.md`)对工作者点名的相关文件审查
+     - ⚠️ **它是项目级 agent,只有从项目目录启动 claude 才注册** —— 从 `/root` 起
+       session 再 `cd` 进去会报 `Agent type 'critic' not found`(见 memory
+       `dual-model-critic-discovery`)。此时**退用内置 `security-reviewer`**,
+       约束只读 + 按 critic 的报告格式输出,本项目已有先例。
+     - **两条路都不通时才停下来问,不允许因为拿不到 critic 就跳过这一步。**
    - 完成审查后,给方向或写决策到 context.md
 5. **若工作者触发切换(遇到无法决策的问题)**:
    - 阅读「问题 / 已尝试 / 需要决策 / 附带变动」
