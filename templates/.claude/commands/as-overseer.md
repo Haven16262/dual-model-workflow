@@ -19,10 +19,12 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
    - **本会话首次时顺带对一次版本**(每会话一次,不是每轮)。取
      `T="${DUAL_MODEL_TEMPLATES:-/root/workspace/core/dual-model-workflow/templates}"`
      (后半是 VPS 上的仓库路径,其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖),然后
-     对这四个文件各跑一次 `diff -q <本地路径> "$T/<同样的相对路径>"`:
+     对这四个文件各跑一次 `diff -q --strip-trailing-cr <本地路径> "$T/<同样的相对路径>"`:
      `WORKFLOW.md`、`.claude/commands/as-overseer.md`、`.claude/commands/as-worker.md`、
      `.claude/agents/critic.md`
    - 后三个都带检查项或审查规则,**副本旧了会静默丢掉**,所以都要比。
+   - `--strip-trailing-cr` 不能省:Windows 侧镜像目录是 CRLF、git 克隆是 LF,裸 `diff`
+     恒报差异 —— **每次都喊的假警报,正是让人开始无视输出的东西。**
    - ⚠️ **`.claude/agents/critic.md` 必须是实体文件,不许换成软链。** 它随仓库走,异地
      clone(如 music-player 的 Windows 端)拿到的软链会指向一个不存在的本机路径,且不报错。
      用户级 `~/.claude/agents/critic.md` 反过来:那份不入库、不离开本机,才适合用软链。
