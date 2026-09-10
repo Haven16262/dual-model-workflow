@@ -130,13 +130,17 @@ cc-ds() {
   # anything you put in settings.deepseek.json is silently never loaded.
   local _ds_settings=~/.claude/settings.deepseek.json
   [ -f "$_ds_settings" ] || _ds_settings=""
+  # 2026-09-10: all tiers -> deepseek-flash[1m] (V4.1-Flash; v4-pro is routed to
+  # it from 2026-09-14). Keep the [1m] suffix: Claude Code reads it as the 1M
+  # context marker, otherwise it assumes 200k and auto-compacts early.
+  # Rollback (pre-09-14 only): deepseek-v4-pro[1m].
   ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
   ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY \
-  ANTHROPIC_MODEL="deepseek-v4-pro[1m]" \
-  ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-v4-pro[1m]" \
-  ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-v4-pro[1m]" \
-  ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-v4-flash \
-  CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash \
+  ANTHROPIC_MODEL="deepseek-flash[1m]" \
+  ANTHROPIC_DEFAULT_OPUS_MODEL="deepseek-flash[1m]" \
+  ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-flash[1m]" \
+  ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-flash[1m]" \
+  CLAUDE_CODE_SUBAGENT_MODEL="deepseek-flash[1m]" \
   claude ${_ds_settings:+--settings} ${_ds_settings:+"$_ds_settings"} \
          ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
          ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
