@@ -135,6 +135,20 @@ function cc-ds {
     Write-Error "cc-ds: 未找到 ~\.claude\settings.deepseek.json，请先准备 DeepSeek 端点配置。"
     return
   }
+  # 文件存在不代表里面有密钥。CC 找不到 ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY 时
+  # 不会报错，而是把当前登录的 Claude 凭据发给 env.ANTHROPIC_BASE_URL 指向的端点——
+  # 对一个第二模型端点来说，这就是把你的 Claude 账号凭据发给了别处。文件存在但
+  # 密钥字段缺失/空这种半配置状态必须在这里挡住，不能指望 claude 自己拒绝。
+  try {
+    $dsConfig = Get-Content -Raw $dsSettings | ConvertFrom-Json
+  } catch {
+    Write-Error "cc-ds: $dsSettings 不是合法 JSON。"
+    return
+  }
+  if ([string]::IsNullOrEmpty($dsConfig.env.ANTHROPIC_AUTH_TOKEN) -and [string]::IsNullOrEmpty($dsConfig.env.ANTHROPIC_API_KEY)) {
+    Write-Error "cc-ds: $dsSettings 里 env.ANTHROPIC_AUTH_TOKEN / env.ANTHROPIC_API_KEY 都是空的——不启动，以免把 Claude 凭据发给 env.ANTHROPIC_BASE_URL 指向的端点。"
+    return
+  }
   _cc_workflow_prompt
   $cliArgs = _cc_launch_args
   claude --settings $dsSettings @cliArgs @args
