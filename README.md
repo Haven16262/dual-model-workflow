@@ -20,9 +20,9 @@ This workflow splits the work across **two models with separate roles**, and man
 ### Two roles
 
 - **Overseer (`cc`, e.g. Claude)** — direction, decisions, review. Does not read large numbers of files, does not iterate on details. Steps in only at key moments: set architecture at kickoff, decide when the Worker hits a fork, review at phase boundaries.
-- **Worker (`cc-ds`, e.g. DeepSeek)** — execution, iteration, detail implementation. Reads files, looks things up, writes code, fixes bugs. The role that actually does the work.
+- **Worker (`cc-alt`, e.g. DeepSeek)** — execution, iteration, detail implementation. Reads files, looks things up, writes code, fixes bugs. The role that actually does the work.
 
-The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-ds` starts the Worker.
+The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-alt` starts the Worker.
 
 ### Three files
 
@@ -37,7 +37,7 @@ templates/   # markdown templates — platform-neutral, shared by both platforms
 scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 skills/      # allow-once — install into ~/.claude/skills/
-linux/       # bash helpers (cc / cc-ds / cc-init) — source into ~/.bashrc
+linux/       # bash helpers (cc / cc-alt / cc-init) — source into ~/.bashrc
 windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
 ```
 
@@ -107,7 +107,7 @@ cd C:\path\to\your\project
 cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-Then use two terminals: `cc` for the Overseer, `cc-ds` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
+Then use two terminals: `cc` for the Overseer, `cc-alt` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
 
 After you pick a role, the helper also asks for a **topic for this round** (optional, Enter to skip). Together with the machine tag, the project directory, and the role it forms the session name, passed via `--name`, in four segments:
 
@@ -174,7 +174,7 @@ Organizing work *across* machines — using a shared git repository as the hando
 
 ### The Worker permission guard
 
-A Worker session cannot reach Remote Control: `cc-ds` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely.
+A Worker session cannot reach Remote Control: `cc-alt` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely.
 
 The guard is a `PreToolUse` hook that denies those commands *before* the dialog opens, which is what makes "skip it and do something else" possible at all.
 
@@ -213,7 +213,7 @@ Inside `SKILL.md` the interpreter appears **twice** — in `allowed-tools` and i
 
 **Encoding matters here too.** These scripts pin `sys.stdout` to UTF-8 in code rather than relying on `-X utf8` in the hook command, because Claude Code parses hook stdout as UTF-8 while Python defaults to the locale encoding (cp936 on a Simplified Chinese Windows). When that mismatch happens the JSON fails to parse, `permissionDecision` is lost, and the command runs. **A guard that fails open is worse than no guard** — it makes people believe `git push` was blocked when it wasn't. The test suite has a dedicated case for this; don't skip it.
 
-**Linux users: check that your `cc-ds` actually passes the file.** The endpoint comes from environment variables there, so `settings.deepseek.json` is optional and easy to forget — and a hook in a file nobody loads fails *silently*. The helper in `linux/dual-model.sh` passes it when it exists; if you are running a copy sourced before this feature landed, re-source it.
+**Linux users: check that your `cc-alt` actually passes the file.** The endpoint comes from environment variables there, so `settings.deepseek.json` is optional and easy to forget — and a hook in a file nobody loads fails *silently*. The helper in `linux/dual-model.sh` passes it when it exists; if you are running a copy sourced before this feature landed, re-source it.
 
 Verify the install:
 
@@ -307,9 +307,9 @@ MIT — see [LICENSE](LICENSE).
 ### 两个角色
 
 - **全局者(`cc`,如 Claude)** —— 负责方向、决策、审查。不读大量文件,不做迭代修改,只在关键节点介入:项目启动定架构,工作者遇到分歧给决策,阶段完成做 review。
-- **工作者(`cc-ds`,如 DeepSeek)** —— 负责执行、迭代、细节实现。读文件、查资料、写代码、改 bug,是实际干活的角色。
+- **工作者(`cc-alt`,如 DeepSeek)** —— 负责执行、迭代、细节实现。读文件、查资料、写代码、改 bug,是实际干活的角色。
 
-两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-ds` 启动工作者。
+两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-alt` 启动工作者。
 
 ### 三个文件
 
@@ -324,7 +324,7 @@ templates/   # markdown 模板 —— 平台无关,两端共用
 scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 skills/      # allow-once —— 装进 ~/.claude/skills/
-linux/       # bash helper(cc / cc-ds / cc-init)—— source 进 ~/.bashrc
+linux/       # bash helper(cc / cc-alt / cc-init)—— source 进 ~/.bashrc
 windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
 ```
 
@@ -394,7 +394,7 @@ cd C:\你的\项目
 cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
 ```
 
-然后开两个终端:`cc` 跑全局者,`cc-ds` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
+然后开两个终端:`cc` 跑全局者,`cc-alt` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。
 
 选完角色后,脚本还会问一句**本轮话题**(可选,回车跳过)。它和机器标识、项目目录、角色一起构成会话名(通过 `--name`),格式四段:
 
@@ -463,7 +463,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 ### 工作者权限守卫
 
-工作者会话**连不上 Remote Control**：`cc-ds` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。
+工作者会话**连不上 Remote Control**：`cc-alt` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。
 
 守卫是个 `PreToolUse` 钩子，在弹窗打开**之前**把这些命令拒掉——「跳过去做别的」这个选项只有这样才存在。
 
@@ -502,7 +502,7 @@ Windows 上钩子命令和 `SKILL.md` 里都要**写解释器的完整路径**�
 
 **编码同样是个坑。** 这两个脚本在代码里把 `sys.stdout` 定死成 UTF-8，而不是靠钩子命令写 `-X utf8`：Claude Code 按 UTF-8 解析钩子 stdout，而 Python 默认走 locale 编码（简中 Windows 是 cp936）。一旦错开，JSON 解析失败、`permissionDecision` 丢失、命令照常执行。**失败放行的守卫比没有守卫更危险**——它让人以为 `git push` 被挡住了，其实没有。测试套件里有专门一条查这个，别跳过。
 
-**Linux 用户注意确认 `cc-ds` 真的传了这个文件。** Linux 侧端点走环境变量，`settings.deepseek.json` 是可选的、很容易漏——而钩子写在一个没人加载的文件里是**静默失效**，不会报错。`linux/dual-model.sh` 里的 helper 在文件存在时会传；如果你 source 的是这个功能之前的旧副本，重新 source 一次。
+**Linux 用户注意确认 `cc-alt` 真的传了这个文件。** Linux 侧端点走环境变量，`settings.deepseek.json` 是可选的、很容易漏——而钩子写在一个没人加载的文件里是**静默失效**，不会报错。`linux/dual-model.sh` 里的 helper 在文件存在时会传；如果你 source 的是这个功能之前的旧副本，重新 source 一次。
 
 装完验证：
 

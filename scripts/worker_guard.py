@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse 守卫：只加载给工作者会话（cc-ds 经 --settings 传入）。
+"""PreToolUse 守卫：只加载给工作者会话（cc-alt 经 --settings 传入）。
 
 把「会弹窗、但没人能批准」的命令，在弹窗打开之前拦掉。权限弹窗不会超时，
 工作者一旦弹出来就是无限期挂死；拦在前面它才能跳过去做别的。

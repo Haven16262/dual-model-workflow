@@ -14,7 +14,9 @@
 #   3. 模板默认就用本仓库的 templates\（按本脚本位置推算），git pull 即生效，无需复制。
 #      要用别处的模板才设 $env:DUAL_MODEL_TEMPLATES。
 #
-# 命名说明: Windows 上没有 /usr/bin/cc 遮蔽问题，函数名保持 cc / cc-ds / cc-init 与 Linux 版一致。
+# 命名说明: Windows 上没有 /usr/bin/cc 遮蔽问题，函数名保持 cc / cc-alt / cc-init 与 Linux 版一致。
+# （2026-09-15 由 cc-ds 改名 cc-alt——函数本身不认哪个供应商，硬编码在名字里会误导；
+#   两端同步改的，见 project-channel channels/cc-alt-rename/。）
 
 # 模板源：环境变量优先；默认指向本仓库的 templates\，按脚本自身位置推算，不写死机器路径。
 # 不再回退到 ~\.dual-model\templates —— 那是一份独立拷贝，git pull 不会更新它，
@@ -128,11 +130,12 @@ function cc {
   claude @cliArgs @args
 }
 
-# 工作者 — DeepSeek（用 --settings 只对本会话叠加 DeepSeek 端点配置）
-function cc-ds {
-  $dsSettings = "$env:USERPROFILE\.claude\settings.deepseek.json"
-  if (-not (Test-Path $dsSettings)) {
-    Write-Error "cc-ds: 未找到 ~\.claude\settings.deepseek.json，请先准备 DeepSeek 端点配置。"
+# 工作者 — 第二模型（用 --settings 只对本会话叠加端点配置；例子用 DeepSeek，换成
+# 任何 Anthropic 兼容端点都一样，改 settings.<name>.json 的内容即可，函数不认供应商）
+function cc-alt {
+  $altSettings = "$env:USERPROFILE\.claude\settings.deepseek.json"
+  if (-not (Test-Path $altSettings)) {
+    Write-Error "cc-alt: 未找到 ~\.claude\settings.deepseek.json，请先准备第二模型端点配置。"
     return
   }
   # 文件存在不代表里面有密钥。CC 找不到 ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY 时
@@ -140,18 +143,18 @@ function cc-ds {
   # 对一个第二模型端点来说，这就是把你的 Claude 账号凭据发给了别处。文件存在但
   # 密钥字段缺失/空这种半配置状态必须在这里挡住，不能指望 claude 自己拒绝。
   try {
-    $dsConfig = Get-Content -Raw $dsSettings | ConvertFrom-Json
+    $altConfig = Get-Content -Raw $altSettings | ConvertFrom-Json
   } catch {
-    Write-Error "cc-ds: $dsSettings 不是合法 JSON。"
+    Write-Error "cc-alt: $altSettings 不是合法 JSON。"
     return
   }
-  if ([string]::IsNullOrEmpty($dsConfig.env.ANTHROPIC_AUTH_TOKEN) -and [string]::IsNullOrEmpty($dsConfig.env.ANTHROPIC_API_KEY)) {
-    Write-Error "cc-ds: $dsSettings 里 env.ANTHROPIC_AUTH_TOKEN / env.ANTHROPIC_API_KEY 都是空的——不启动，以免把 Claude 凭据发给 env.ANTHROPIC_BASE_URL 指向的端点。"
+  if ([string]::IsNullOrEmpty($altConfig.env.ANTHROPIC_AUTH_TOKEN) -and [string]::IsNullOrEmpty($altConfig.env.ANTHROPIC_API_KEY)) {
+    Write-Error "cc-alt: $altSettings 里 env.ANTHROPIC_AUTH_TOKEN / env.ANTHROPIC_API_KEY 都是空的——不启动，以免把 Claude 凭据发给 env.ANTHROPIC_BASE_URL 指向的端点。"
     return
   }
   _cc_workflow_prompt
   $cliArgs = _cc_launch_args
-  claude --settings $dsSettings @cliArgs @args
+  claude --settings $altSettings @cliArgs @args
 }
 
 # 在当前项目目录初始化双模型工作流

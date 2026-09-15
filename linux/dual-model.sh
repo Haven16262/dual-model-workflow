@@ -12,10 +12,12 @@
 #      (defaults to ~/.dual-model/templates — copy this repo's templates/ there,
 #       or set DUAL_MODEL_TEMPLATES to wherever you keep them).
 #
-# NOTE ON NAMING: the functions below are named `cc`, `cc-ds`, `cc-init`
+# NOTE ON NAMING: the functions below are named `cc`, `cc-alt`, `cc-init`
 # to match the reference write-up. `cc` will shadow the system C compiler
 # (/usr/bin/cc) in interactive shells. If you do C development, rename these
-# (e.g. `dm`, `dm-ds`, `dm-init`) — they are plain functions, just change the names.
+# (e.g. `dm`, `dm-alt`, `dm-init`) — they are plain functions, just change the names.
+# (2026-09-15: renamed from `cc-ds` — the function doesn't care which provider
+# it's pointed at, so hardcoding one in the name was misleading.)
 
 : "${DUAL_MODEL_TEMPLATES:=$HOME/.dual-model/templates}"
 
@@ -115,10 +117,11 @@ cc() {
          ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
 }
 
-# Worker — DeepSeek via Claude Code's Anthropic-compatible endpoint
-cc-ds() {
+# Worker — DeepSeek via Claude Code's Anthropic-compatible endpoint (example
+# provider; swap the env vars below for any other Anthropic-compatible endpoint)
+cc-alt() {
   if [ -z "$DEEPSEEK_API_KEY" ]; then
-    echo "cc-ds: DEEPSEEK_API_KEY is not set. Export it in your shell profile first." >&2
+    echo "cc-alt: DEEPSEEK_API_KEY is not set. Export it in your shell profile first." >&2
     return 1
   fi
   _cc_workflow_prompt
