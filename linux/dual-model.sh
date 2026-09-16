@@ -12,6 +12,14 @@
 #      (defaults to ~/.dual-model/templates — copy this repo's templates/ there,
 #       or set DUAL_MODEL_TEMPLATES to wherever you keep them).
 #
+# NOTE: this cc-init is the portable/reference path for a fresh machine — it is
+# NOT the one running on the maintainer's own VPS (that one lives inline in
+# ~/.bashrc and points at a symlinked templates/ dir). Because of that, this
+# path never gets exercised by normal use here, so a regression in it (e.g. the
+# .claude/ copy logic) won't be caught locally. To self-test it on this
+# machine: `ln -s "$(pwd)/templates" ~/.dual-model/templates`, then try cc-init
+# in a scratch directory — don't rely on the maintainer's own cc-init for this.
+#
 # NOTE ON NAMING: the functions below are named `cc`, `cc-alt`, `cc-init`
 # to match the reference write-up. `cc` will shadow the system C compiler
 # (/usr/bin/cc) in interactive shells. If you do C development, rename these
