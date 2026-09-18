@@ -22,7 +22,7 @@ BASE="${1:-}"
 
 # 分类关键词（大小写不敏感，只扫代码/配置，排除 .md 文档）
 # 认证/会话 | 密钥凭据 | 注入/命令执行 | 路径穿越/权限 | 外部请求
-PATTERN='auth|login|jwt|cookie|passw(or)?d|secret|token|api[_-]?key|credential|private[_-]?key|\.env\b|select .+ from|insert into|delete from|drop table|exec\(|execute\(|eval\(|spawn|subprocess|os\.system|shell=true|child_process|\.\./|chmod|chown|sudo |http://|https://|fetch\(|requests\.(get|post|put|delete)|axios\.|curl |wget |ssh |scp |iptables'
+PATTERN='auth|login|jwt|cookie|passw(or)?d|secret|token|api[_-]?key|credential|private[_-]?key|\.env([^A-Za-z0-9_]|$)|select .+ from|insert into|delete from|drop table|exec\(|execute\(|eval\(|spawn|subprocess|os\.system|shell=true|child_process|\.\./|chmod|chown|sudo |http://|https://|fetch\(|requests\.(get|post|put|delete)|axios\.|curl |wget |ssh |scp |iptables'
 
 EXCLUDES=(':(exclude)*.md' ':(exclude)context*.md' ':(exclude)WORKFLOW.md')
 
