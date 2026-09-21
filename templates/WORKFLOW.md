@@ -191,6 +191,14 @@
 | `context.md` | 当前 phase 任务 + 跨 phase 约定 + 最近 1 对历史 | 全局者、工作者 | 全局者(主) + 工作者(本 phase 历史块) |
 | `context_history.md` | 已闭环 phase 的完整 worker/overseer 交互原文 | 全局者(回溯用) | 全局者(phase 关闭时归档) |
 | `CLAUDE.md` | session 启动读取顺序 | 全局者、工作者 | 全局者 |
+| `docs/` | 不随交接轮换、会被反复引用的长期文档 | 全局者、工作者(按 `context.md` 里的指针) | 全局者建;工作者需要时也可写 |
+| `context_history-archive-<阶段名>.md` | 已闭环早期 phase 的封存件(`context_history.md` ≥1800 行时提示封存) | 全局者(grep 定点回查,不全量通读) | 全局者(封存时) |
+| `.claude/commands/as-overseer.md`、`as-worker.md` | 两个角色的切换入口 | — | `cc-init` 装;手动改需同步模板 |
+| `.claude/agents/critic.md` | 安全审查子代理定义(Haiku)。**缺失则「角色定义」里的必审规则静默失效**,注册前提见该节的可用前提说明 | 全局者(invoke) | `cc-init` 装;手动改需同步模板 |
+
+**交接原文与长期文档的分界:** 交接对话的原文进 `context_history.md`;
+不随交接轮换、会被反复引用的文档进 `docs/`,`context.md` 里只留一行指针(写全路径)。
+`docs/` 不规定目录结构、命名与长度上限 —— 各项目按需要自行安排。
 
 ---
 
