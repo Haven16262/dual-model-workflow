@@ -60,10 +60,31 @@ _cc_topic_slug() {
     | sed 's/^-*//; s/-*$//'
 }
 
+# Workflow mode: the rules live in ONE script, scripts/dual-model-mode.sh
+# (WORKFLOW.md, section 工作模式与旋钮表). Install it to ~/.claude/scripts/ or
+# point DUAL_MODEL_SCRIPTS at the directory holding it.
+_cc_mode_script() { echo "${DUAL_MODEL_SCRIPTS:-$HOME/.claude/scripts}/dual-model-mode.sh"; }
+_cc_read_mode() {
+  _CC_MODE=""
+  local _s; _s=$(_cc_mode_script)
+  if [ ! -x "$_s" ]; then
+    if [ -f context.md ] && grep -q '^workflow-mode:' context.md; then
+      echo "  context.md sets a workflow mode but $_s is missing. Install it (see WORKFLOW.md). Not launching." >&2
+      return 1
+    fi
+    echo "  WARNING: $_s not found; workflow mode NOT checked." >&2
+    return 0
+  fi
+  _CC_MODE=$("$_s" mode context.md) || return 1
+  return 0
+}
+
 _cc_workflow_prompt() {
   _CC_ROLE_PROMPT=""
   _CC_SESSION_NAME=""
-  [ ! -f "WORKFLOW.md" ] && return
+  _CC_MODE=""
+  _CC_ROLE=""
+  [ ! -f "WORKFLOW.md" ] && return 0
   local _slug _role _topic _peer _tag
   # 机器标识：跨机器时 claude.ai / 手机的会话列表是两台机器混排的，而同一个
   # git 仓库在两端目录名相同 → slug 相同 → 三段式名字逐字撞车。前缀（不是后缀）
@@ -88,6 +109,9 @@ _cc_workflow_prompt() {
       ;;
   esac
 
+  _CC_ROLE="$_role"
+  _cc_read_mode || return 1
+
   printf "  Topic for this round (optional, Enter to skip): "
   read _topic
   _topic=$(_cc_topic_slug "$_topic")
@@ -103,11 +127,23 @@ _cc_workflow_prompt() {
       _CC_ROLE_PROMPT="You are the Worker. Your session name is '${_CC_SESSION_NAME}'. The Overseer's session name starts with '${_peer}' but its suffix is picked at the Overseer's own launch, so you cannot compute it: run ListAgents before EVERY send and use the row whose name starts with that prefix. Re-check every time: never reuse a name from an earlier lookup or one your user pasted, because a peer's name changes when its terminal is restarted. Exactly one match — send to it with SendMessage as described in the cross-session notification section of WORKFLOW.md. No match or several — fall back to the manual handoff described there, do not guess. Read WORKFLOW.md and context.md for the current task and execute."
       ;;
   esac
+  if [ -n "$_CC_MODE" ]; then
+    _CC_ROLE_PROMPT="${_CC_ROLE_PROMPT} Workflow mode: ${_CC_MODE} (knob defaults: WORKFLOW.md, mode and knob table section)."
+  elif [ "$_role" = 1 ]; then
+    _CC_ROLE_PROMPT="${_CC_ROLE_PROMPT} This project has no workflow mode yet: before anything else this round, propose a mode and its default knob values to the user (WORKFLOW.md, mode and knob table section)."
+  fi
 
   echo ""
   echo "  - Role injected silently into the system prompt (doesn't consume your first message)."
   echo "  - Session name: ${_CC_SESSION_NAME}"
   echo "  - Peer prefix:  ${_peer}*   (resolved via ListAgents at send time)"
+  if [ -n "$_CC_MODE" ]; then
+    echo "  - Workflow mode: ${_CC_MODE}"
+  else
+    echo "  - Workflow mode: NOT SET (no 'workflow-mode:' line in context.md)"
+    echo "    For a competition project: after the mode is written, restart the Overseer"
+    echo "    so the competition effort default applies."
+  fi
   if [ "$_role" = 1 ]; then
     echo "  Handoffs are sent to the Worker automatically once it is running."
     echo "  Manual fallback: in the Worker terminal, type /as-worker"
@@ -120,9 +156,18 @@ _cc_workflow_prompt() {
 
 # Overseer — Claude (or whatever your default `claude` provider is)
 cc() {
-  _cc_workflow_prompt
+  _cc_workflow_prompt || return 1
+  local _effort="" _role_env=""
+  if [ "$_CC_MODE" = competition ] && [ "$_CC_ROLE" = 1 ]; then
+    _effort=$("$(_cc_mode_script)" effort)
+    echo "  - Effort: --effort ${_effort} (competition default)"
+  fi
+  # Role for hooks (e.g. the K10 forced-response Stop hook only gates the Overseer).
+  case "$_CC_ROLE" in 1) _role_env=overseer ;; 2) _role_env=worker ;; esac
+  DUAL_MODEL_ROLE="$_role_env" \
   claude ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
-         ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
+         ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} \
+         ${_effort:+--effort} ${_effort:+"$_effort"} "$@"
 }
 
 # Worker — DeepSeek via Claude Code's Anthropic-compatible endpoint (example
@@ -132,7 +177,9 @@ cc-alt() {
     echo "cc-alt: DEEPSEEK_API_KEY is not set. Export it in your shell profile first." >&2
     return 1
   fi
-  _cc_workflow_prompt
+  _cc_workflow_prompt || return 1
+  local _role_env=""
+  case "$_CC_ROLE" in 1) _role_env=overseer ;; 2) _role_env=worker ;; esac
   # Worker-only settings overlay. On Linux the DeepSeek endpoint comes from the
   # environment variables below, so this file is OPTIONAL and carries only hooks
   # (the worker permission guard, a vision co-pilot, ...). Windows needs it for
@@ -152,6 +199,7 @@ cc-alt() {
   ANTHROPIC_DEFAULT_SONNET_MODEL="deepseek-flash[1m]" \
   ANTHROPIC_DEFAULT_HAIKU_MODEL="deepseek-flash[1m]" \
   CLAUDE_CODE_SUBAGENT_MODEL="deepseek-flash[1m]" \
+  DUAL_MODEL_ROLE="$_role_env" \
   claude ${_ds_settings:+--settings} ${_ds_settings:+"$_ds_settings"} \
          ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
          ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} "$@"
@@ -176,12 +224,28 @@ cc-init() {
     mkdir -p .claude/commands .claude/agents
     cp -n "$DUAL_MODEL_TEMPLATES/.claude/commands/"*.md .claude/commands/ 2>/dev/null
     cp -n "$DUAL_MODEL_TEMPLATES/.claude/agents/"*.md .claude/agents/ 2>/dev/null
+    # K10 hooks (Stop = forced response, SubagentStop = report to file). -n: never
+    # overwrite a project's own settings.json; merge by hand if one exists.
+    local _k10s="${DUAL_MODEL_SCRIPTS:-$HOME/.claude/scripts}"
+    if [ ! -f "$_k10s/k10-stop-gate.py" ] || [ ! -f "$_k10s/k10-subagent-report.py" ]; then
+      echo "  NOTE: K10 hook scripts not found in $_k10s; the hooks will only print 'not installed'. Install scripts/ first (README)."
+    fi
+    if [ -f .claude/settings.json ]; then
+      echo "  NOTE: .claude/settings.json exists; merge the K10 hooks from $DUAL_MODEL_TEMPLATES/.claude/settings.json by hand."
+    else
+      cp "$DUAL_MODEL_TEMPLATES/.claude/settings.json" .claude/settings.json 2>/dev/null
+    fi
+  fi
+  if [ -d "$DUAL_MODEL_TEMPLATES/.workflow" ]; then
+    mkdir -p .workflow
+    cp -rn "$DUAL_MODEL_TEMPLATES/.workflow/." .workflow/ 2>/dev/null
   fi
   echo "  Dual-model workflow initialized:"
   echo "  WORKFLOW.md          — role definitions and switch rules"
   echo "  CLAUDE.md            — tells the model to read the workflow on startup"
   echo "  context.md           — shared context between the two models"
   echo "  context_history.md   — archive landing spot (empty header; appended at phase close)"
+  echo "  .workflow/           — K10 third-party templates + k10.example.json (see WORKFLOW.md, K10)"
   if [ -d .claude/commands ]; then
     echo "  .claude/commands/    — role-switch slash commands (/as-overseer, /as-worker)"
   fi

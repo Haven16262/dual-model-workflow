@@ -13,18 +13,34 @@
 
 _尚未开始，等待全局者写入初始方向。_
 
+### 工作模式
+
+<!-- 常驻小节。开工确认后，全局者在本注释下方单独写一行模式行：行首顶格写 workflow-mode，
+     后跟英文冒号和 project / competition / research 之一。全文件只许这一处以它开头；
+     启动器读这一行，值不认识或出现多行都会拒绝启动。别处提到模式一律写成「模式：competition」。
+     下表只写和 WORKFLOW.md「工作模式与旋钮表」默认值不同的项。 -->
+
+_未选模式。_
+
+| 旋钮 | 本项目取值 | 为什么和默认值不同 | 用户同意日期 |
+|---|---|---|---|
+
+**第三者召唤日历与 K9 参数：** 见 `.workflow/k10.json`（开工确认时由全局者按用户拍板的值写入，改动要用户同意；由 cron 上的 `k10-watch.py` 读取）。分数表 `.workflow/scores.tsv`、排行榜 `.workflow/leaderboard.tsv` 的格式见 WORKFLOW.md「K10 第三者」。
+
+**例外记录：**　<!-- 每次绕过默认值，追加一行「- 【例外:<名>】 YYYY-MM-DD 理由」；复审后追加「- 【例外已复审:<名>】 YYYY-MM-DD 结论」。只追加，不删 -->
+
 ---
 
 ## 跨 Phase 关键约定
 
-<!-- 稳定,极少改动。只放影响后续所有工作的决策。用指针,不复制 spec 内容 -->
+<!-- 稳定，极少改动。只放影响后续所有工作的决策。用指针，不复制 spec 内容 -->
 
-_无,等首次跨 phase 决策后填入。_
+_无，等首次跨 phase 决策后填入。_
 
 ---
 
 ## 本 Phase 历史
 
-<!-- 工作者和全局者 append。保守规则:只留最近 1 对(latest overseer + latest worker)。新 phase 启动时整体归档到 context_history.md -->
+<!-- 工作者和全局者 append。保守规则：只留最近 1 对（latest overseer + latest worker）。新 phase 启动时整体归档到 context_history.md -->
 
-_无,等首次 worker/overseer 交互后开始累积。_
+_无，等首次 worker/overseer 交互后开始累积。_

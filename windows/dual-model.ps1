@@ -56,10 +56,71 @@ function _cc_topic_slug {
   return $t.Trim('-')
 }
 
+# 工作模式（WORKFLOW.md「工作模式与旋钮表」）。唯一来源是 context.md 里行首的一行
+# `workflow-mode: project|competition|research`，全文件只许一行。0 行 = 还没选（警告，
+# 不套用任何模式专属参数）；值不认识或有多行 = 拒绝启动。绝不静默回落默认值——
+# 比赛悄悄跑在项目默认值上，正是这里要防的失效。先去掉 \r（文件可能是 CRLF）。
+# 与 linux/dual-model.sh 的 _cc_read_mode 同一规格，改一处必须改另一处。
+function _cc_read_mode {
+  $script:CC_MODE = ""
+  if (-not (Test-Path "context.md")) { return $true }
+  $lines = @(Get-Content -Encoding UTF8 "context.md" | ForEach-Object { $_ -replace "`r", "" } | Where-Object { $_ -cmatch '^workflow-mode:' })
+  if ($lines.Count -eq 0) {
+    # 近似写法（缩进、workflow_mode、全角冒号、大小写不同）不能当成「没有这一行」放过去。
+    $near = @(Select-String -Path "context.md" -Encoding UTF8 -Pattern '^\s*workflow[-_ ]?mode\s*(:|：)')
+    if ($near.Count -gt 0) {
+      Write-Host "  context.md 里有像模式行、但不是行首顶格「workflow-mode: <值>」的行：" -ForegroundColor Red
+      $near | ForEach-Object { Write-Host "    第 $($_.LineNumber) 行：$($_.Line)" -ForegroundColor Red }
+      Write-Host "  改正或删掉它。不启动。" -ForegroundColor Red
+      return $false
+    }
+    return $true
+  }
+  if ($lines.Count -gt 1) {
+    Write-Host "  context.md 里有 $($lines.Count) 行 workflow-mode:，只许一行。不启动。" -ForegroundColor Red
+    return $false
+  }
+  $val = ($lines[0] -replace '^workflow-mode:\s*', '').TrimEnd()
+  if (@('project', 'competition', 'research') -ccontains $val) {
+    $script:CC_MODE = $val
+    return $true
+  }
+  Write-Host "  context.md: workflow-mode 是「$val」；合法值：project | competition | research。不启动。" -ForegroundColor Red
+  return $false
+}
+
+# 比赛模式下全局者的 effort（与 scripts/dual-model-mode.sh 的 effort 子命令同一规格）：
+# 照传 --effort，默认 high，DUAL_MODEL_EFFORT 可调高。只警告、不拦启动（用户 2026-09-26 裁定）：
+# 值不合法、或 CLAUDE_CODE_EFFORT_LEVEL（优先于 --effort）更低时，打印警告后照常启动。
+# 不读 settings.json：写在用户 settings 文件里的顶层 effortLevel，2026-09-26 在 Opus 5.5 上实测没生效（机制未查）；
+# 用 /effort 保存后写入的按模型 modelSettings 生效。
+# 管不到：用户自己在 @args 里传 --effort low。
+function _cc_effort_rank([string]$e) {
+  switch -CaseSensitive ($e) { 'low' { 1 } 'medium' { 2 } 'high' { 3 } 'xhigh' { 4 } 'max' { 5 } default { 0 } }
+}
+function _cc_competition_effort {
+  $want = 'high'
+  if ($env:DUAL_MODEL_EFFORT) {
+    if ((_cc_effort_rank $env:DUAL_MODEL_EFFORT) -ge 3) { $want = $env:DUAL_MODEL_EFFORT }
+    else { Write-Host "  警告：DUAL_MODEL_EFFORT=「$($env:DUAL_MODEL_EFFORT)」不是 high | xhigh | max（小写）；改用 high。" -ForegroundColor Red }
+  }
+  $lvl = $env:CLAUDE_CODE_EFFORT_LEVEL
+  if ($lvl) {
+    if ((_cc_effort_rank $lvl) -eq 0) {
+      Write-Host "  警告：CLAUDE_CODE_EFFORT_LEVEL=「$lvl」不是 low | medium | high | xhigh | max；它可能盖过 --effort $want。" -ForegroundColor Red
+    } elseif ((_cc_effort_rank $lvl) -lt (_cc_effort_rank $want)) {
+      Write-Host "  警告：CLAUDE_CODE_EFFORT_LEVEL=「$lvl」优先于 --effort；本会话会跑在「$lvl」，低于比赛默认「$want」。" -ForegroundColor Red
+    }
+  }
+  $script:CC_EFFORT = $want
+}
+
 function _cc_workflow_prompt {
   $script:CC_ROLE_PROMPT = ""
   $script:CC_SESSION_NAME = ""
-  if (-not (Test-Path "WORKFLOW.md")) { return }
+  $script:CC_MODE = ""
+  $script:CC_ROLE = ""
+  if (-not (Test-Path "WORKFLOW.md")) { return $true }
   # 机器标识：跨机器时 claude.ai / 手机的会话列表是两台机器混排的，而同一个
   # git 仓库在两端目录名相同 → slug 相同 → 三段式名字逐字撞车。前缀（不是后缀）
   # 才能让搭档前缀匹配继续工作。文件不存在就不加前缀，别的机器不受影响。
@@ -80,9 +141,11 @@ function _cc_workflow_prompt {
       Write-Host "  （模型按 WORKFLOW.md 默认走工作者；交接保持人工中转）" -ForegroundColor DarkGray
       Write-Host ""
       $script:CC_SESSION_NAME = ""
-      return
+      return $true
     }
   }
+  $script:CC_ROLE = $role
+  if (-not (_cc_read_mode)) { return $false }
 
   $topic = _cc_topic_slug (Read-Host "  本轮话题（可选，回车跳过）")
   # 话题为空也得有个区分段，否则 /resume 的条目又重名了。
@@ -98,12 +161,23 @@ function _cc_workflow_prompt {
       $script:CC_ROLE_PROMPT = "你当前是工作者。你的会话名是「$($script:CC_SESSION_NAME)」。$findPeer 读 WORKFLOW.md 和 context.md 获取当前任务，按方向执行。"
     }
   }
+  if ($script:CC_MODE) {
+    $script:CC_ROLE_PROMPT += " 工作模式：$($script:CC_MODE)（各旋钮默认值见 WORKFLOW.md「工作模式与旋钮表」）。"
+  } elseif ($role -eq "1") {
+    $script:CC_ROLE_PROMPT += " 本项目还没有选工作模式：本轮第一件事是向用户提出模式建议和该模式的默认参数（见 WORKFLOW.md「工作模式与旋钮表」）。"
+  }
 
   $color = if ($role -eq "1") { "Yellow" } else { "Green" }
   Write-Host ""
   Write-Host "  - 角色已静默注入系统提示（不占用你的第一条消息）。" -ForegroundColor $color
   Write-Host "  - 会话名：$($script:CC_SESSION_NAME)" -ForegroundColor $color
   Write-Host "  - 对方前缀：$peer*   （发送时用 ListAgents 现查）" -ForegroundColor $color
+  if ($script:CC_MODE) {
+    Write-Host "  - 工作模式：$($script:CC_MODE)" -ForegroundColor $color
+  } else {
+    Write-Host "  - 工作模式：未选（context.md 里没有 workflow-mode: 行）" -ForegroundColor Red
+    Write-Host "    比赛项目写入模式后要重启全局者，比赛模式的 effort 默认值才会生效。" -ForegroundColor Red
+  }
   if ($role -eq "1") {
     Write-Host "  工作者跑起来之后，交接会自动发给它。" -ForegroundColor $color
     Write-Host "  人工兜底：在工作者终端输入 /as-worker" -ForegroundColor $color
@@ -112,6 +186,7 @@ function _cc_workflow_prompt {
     Write-Host "  人工兜底：在全局者终端输入 /as-overseer" -ForegroundColor $color
   }
   Write-Host ""
+  return $true
 }
 
 # 把会话名和角色提示拼成参数数组。PowerShell 没有 bash 的 ${VAR:+--name} 条件展开，
@@ -120,14 +195,28 @@ function _cc_launch_args {
   $a = @()
   if ($script:CC_SESSION_NAME) { $a += '--name'; $a += $script:CC_SESSION_NAME }
   if ($script:CC_ROLE_PROMPT)  { $a += '--append-system-prompt'; $a += $script:CC_ROLE_PROMPT }
+  if ($script:CC_EFFORT)       { $a += '--effort'; $a += $script:CC_EFFORT }
   return ,$a
+}
+
+# 把角色放进环境变量 DUAL_MODEL_ROLE 给钩子用（K10 强制回应的 Stop 钩子只拦全局者），启动完恢复原值。
+# 注意：脚本块里的 $args 是脚本块自己的参数，所以调用方要把自己的 $args 作为 $rest 显式传进来。
+function _cc_with_role_env([scriptblock]$run, [object[]]$rest) {
+  $old = $env:DUAL_MODEL_ROLE
+  $env:DUAL_MODEL_ROLE = switch ($script:CC_ROLE) { '1' { 'overseer' } '2' { 'worker' } default { '' } }
+  try { & $run @rest } finally { $env:DUAL_MODEL_ROLE = $old }
 }
 
 # 全局者 — Claude（用 ~\.claude\settings.json 里的默认配置，不做任何切换）
 function cc {
-  _cc_workflow_prompt
+  $script:CC_EFFORT = ""
+  if (-not (_cc_workflow_prompt)) { return }
+  if ($script:CC_MODE -eq 'competition' -and $script:CC_ROLE -eq '1') {
+    _cc_competition_effort
+    Write-Host "  - Effort：--effort $($script:CC_EFFORT)（比赛模式默认）" -ForegroundColor Yellow
+  }
   $cliArgs = _cc_launch_args
-  claude @cliArgs @args
+  _cc_with_role_env { claude @cliArgs @args } $args
 }
 
 # 工作者 — 第二模型（用 --settings 只对本会话叠加端点配置；例子用 DeepSeek，换成
@@ -152,9 +241,10 @@ function cc-alt {
     Write-Error "cc-alt: $altSettings 里 env.ANTHROPIC_AUTH_TOKEN / env.ANTHROPIC_API_KEY 都是空的——不启动，以免把 Claude 凭据发给 env.ANTHROPIC_BASE_URL 指向的端点。"
     return
   }
-  _cc_workflow_prompt
+  $script:CC_EFFORT = ""
+  if (-not (_cc_workflow_prompt)) { return }
   $cliArgs = _cc_launch_args
-  claude --settings $altSettings @cliArgs @args
+  _cc_with_role_env { claude --settings $altSettings @cliArgs @args } $args
 }
 
 # 在当前项目目录初始化双模型工作流
@@ -180,12 +270,34 @@ function cc-init {
     Get-ChildItem "$tpl\.claude\agents\*.md" -ErrorAction SilentlyContinue | ForEach-Object {
       if (-not (Test-Path ".claude\agents\$($_.Name)")) { Copy-Item $_.FullName .claude\agents\ }
     }
+    # K10 钩子（Stop = 强制回应，SubagentStop = 报告落盘）。已有 settings.json 就不覆盖，提示手动合并。
+    # 注意：钩子命令写的是 python3 "$HOME/..."，在 Windows 上未实测（python 可执行名、$HOME 展开都要在 MSI 上确认）。
+    if (-not (Test-Path "$env:USERPROFILE\.claude\scripts\k10-stop-gate.py")) {
+      Write-Host "  注意：~\.claude\scripts\ 下没有 K10 钩子脚本；钩子只会提示「未安装」。先按 README 安装 scripts\。" -ForegroundColor Yellow
+    }
+    if (Test-Path ".claude\settings.json") {
+      Write-Host "  注意：.claude\settings.json 已存在，请手动合并 $tpl\.claude\settings.json 里的 K10 钩子。" -ForegroundColor Yellow
+    } elseif (Test-Path "$tpl\.claude\settings.json") {
+      Copy-Item "$tpl\.claude\settings.json" .claude\settings.json
+    }
+  }
+  if (Test-Path "$tpl\.workflow") {
+    New-Item -ItemType Directory -Force .workflow | Out-Null
+    Get-ChildItem -Recurse -File "$tpl\.workflow" | ForEach-Object {
+      $rel = $_.FullName.Substring((Resolve-Path "$tpl\.workflow").Path.Length).TrimStart('\')
+      $dst = Join-Path .workflow $rel
+      if (-not (Test-Path $dst)) {
+        New-Item -ItemType Directory -Force (Split-Path $dst) | Out-Null
+        Copy-Item $_.FullName $dst
+      }
+    }
   }
   Write-Host "  双模型工作流已初始化：" -ForegroundColor Cyan
   Write-Host "  WORKFLOW.md          — 角色定义和切换规则"
   Write-Host "  CLAUDE.md            — 告知模型启动时读取工作流"
   Write-Host "  context.md           — 模型间共享上下文"
   Write-Host "  context_history.md   — 归档落点（空表头，phase 关闭时追加）"
+  Write-Host "  .workflow\           — K10 第三者召唤模板 + k10.example.json（见 WORKFLOW.md「K10 第三者」）"
   if (Test-Path ".claude\commands") {
     Write-Host "  .claude\commands\    — 角色切换 slash 命令（/as-overseer、/as-worker）"
   }

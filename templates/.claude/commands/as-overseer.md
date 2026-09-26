@@ -43,8 +43,43 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
    - 优先看顶部 `## 当前状态` 区块
    - 再看最新的历史记录，定位最近一条「工作者」或「工作者 → 全局者」条目
    - 顺带 `wc -l context.md context_history.md` 拿到两个行数
-3. **复述确认**（发给用户，1-2 句），**行数无条件带上**：
-   > 我是全局者。最新交接：[摘要]（context NNN / history NNNN 行）
+   - 顺带跑下面几条，结果在第 3 步复述：
+     `grep -E '^workflow-mode:' context.md`（模式行）、`echo "$CLAUDE_EFFORT"`（本回合**实际**生效的 effort，
+     CC 提供给 Bash 的变量；不要读 settings，settings 里写的值实测可能不生效）、
+     `grep -E '^- 【例外(已复审)?[:：]' context.md | sed 's/：/:/' | grep -oE '【例外(已复审)?:[^】]+】' | awk -F: '$1 ~ /已复审/ {c[$2]=0; next} {c[$2]++} END {print "查了", NR, "条例外记录"; for (k in c) if (c[k]) print c[k], k}'`
+     （例外计数：只数「例外记录」列表里行首为 `- 【例外` 的行，正文里引用的不算；全角冒号也认；只数每个名字最近一次「已复审」之后的；无条件打印查了几条）
+     第三者报告：`python3 "$HOME/.claude/scripts/k10-stop-gate.py" --check`（在项目目录跑；只读，不写拦截计数；
+     stderr 打印「查了 N 份报告，未回应 M 份」，有缺口时 stdout 列出哪份缺哪几条）。**不要不带 `--check` 手动跑它**：那会重置本回合的拦截计数，并写状态文件；
+     值班状态：`ls -l --time-style=+%F_%H:%M .workflow/k10.json .workflow/k10-state.json 2>&1`，`grep -o '"last_k9_error": [^,}]*' .workflow/k10-state.json`；
+     值班失败：`find .workflow/k10-failures -name '*.md' -newer .workflow/k10-failures/.seen 2>/dev/null; ls .workflow/k10-failures/.seen 2>&1`
+     （`.seen` 不存在时，所有失败记录都算没看过）
+3. **复述确认**（发给用户，1-2 句），**行数、模式、effort 无条件带上**：
+   > 我是全局者。最新交接：[摘要]（context NNN / history NNNN 行；模式 competition；effort high）
+
+   模式行不存在时写「模式 未选 ⚠️」，并把「提出模式建议」作为本轮第一件事（见 WORKFLOW.md「工作模式与旋钮表」）。
+   `$CLAUDE_EFFORT` 读出来是空的时追加（变量名可能随 CC 版本变了，读不到不能当作正常）：
+   > （effort 读不到 ⚠️ —— 用 /effort 看一眼，或查 CC 版本说明）
+
+   模式是 competition、effort 却低于 high 时追加：
+   > （effort 实际为 medium ⚠️，比赛模式默认 high —— 会话内被调低了？用 /effort 调回，或重启）
+
+   有同名例外满 2 次时追加：
+   > （【例外:约定3】已 2 次 ⚠️ —— 列入下一次复审）
+
+   有未回应的第三者报告时追加，并把逐条回应作为本轮第一件事（Stop 钩子也会拦住结束回合）：
+   > （第三者报告 1 份未回应 ⚠️：<文件名>）
+
+   模式是 competition，但 `.workflow/k10.json` 不存在时追加（K9 值班和日历召唤都靠它）：
+   > （K9 值班未配置 ⚠️ —— 开工确认时要写 k10.json，并请用户加 cron 行）
+
+   有没看过的值班失败记录时追加。它可能是日历召唤（骨架）永久失败了，要先读记录，决定是修配置后请用户重开，还是由用户手动开会话；处理完执行 `touch .workflow/k10-failures/.seen`：
+   > （值班失败 1 份未看 ⚠️：<文件名>）
+
+   `k10-state.json` 里的 `last_k9_error` 不为空时追加（K9 配置或数据有错，K9 一直没在判）：
+   > （K9 判定失败 ⚠️：<last_k9_error 的内容>）
+
+   `k10.json` 存在、而 `k10-state.json` 不存在，或者比 cron 周期旧很多时追加：
+   > （K9 值班可能没在跑 ⚠️ —— k10-state.json 最后更新于 <时间>）
 
    `context.md` ≥ 300 行时追加（WORKFLOW.md「长度规则」的软上限）：
    > （context 334 行 ⚠️ 超软上限，下一轮决策前先清理：旧轮迁 `context_history.md`）

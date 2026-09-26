@@ -36,6 +36,10 @@ The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-a
 templates/   # markdown templates — platform-neutral, shared by both platforms
 scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
+#              dual-model-mode.sh (workflow-mode rules, called by the launchers)
+#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (third-party reviews, K10)
+#              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)
+docs/design/ # design records (why the templates say what they say)
 skills/      # allow-once — install into ~/.claude/skills/
 linux/       # bash helpers (cc / cc-alt / cc-init) — source into ~/.bashrc
 windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
@@ -58,9 +62,10 @@ cp -r templates/. ~/.dual-model/templates/
 #   (the trailing dot copies hidden entries like .claude/ too)
 #   (or: export DUAL_MODEL_TEMPLATES=/abs/path/to/dual-model-workflow/templates)
 
-# 2b. Install the security precheck script (used by the Overseer before every review)
+# 2b. Install the scripts: security precheck (Overseer, before every review),
+#     workflow-mode rules (read by cc / cc-alt), K10 third-party hooks + watcher
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
 
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -71,7 +76,10 @@ source ~/.bashrc
 
 # 5. In any project directory, initialize the workflow
 cd /path/to/your/project
-cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
+
+# 6. (competition-mode projects) schedule the K9 watcher — see WORKFLOW.md, section K10
+#    */30 * * * * flock -n /tmp/k10-<proj>.lock ~/.claude/scripts/k10-watch.py /path/to/project >> /path/to/k10.log 2>&1
 ```
 
 > **Naming note:** `cc` shadows the system C compiler (`/usr/bin/cc`) in interactive shells. If you do C development, rename the functions in `linux/dual-model.sh` (e.g. `dm`, `dm-ds`, `dm-init`).
@@ -87,12 +95,16 @@ cd dual-model-workflow
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
 Copy-Item -Recurse -Force templates\* "$env:USERPROFILE\.dual-model\templates\"
 Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templates\"
-#   (the wildcard skips hidden dirs, so .claude/ needs its own copy)
+Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\templates\"
+#   (the wildcard skips hidden dirs, so .claude/ and .workflow/ need their own copy)
 #   (or: $env:DUAL_MODEL_TEMPLATES = "C:\abs\path\to\dual-model-workflow\templates")
 
 # 2b. Install the security precheck script (runs under Git Bash, which Claude Code ships with)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
+#     K10 hooks / watcher (Python) — NOT yet tested on Windows: check that `python3` and `$HOME`
+#     resolve in the hook shell before relying on them
+Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. Prepare the settings file for model switching (NEVER commit the key)
 #    ~\.claude\settings.deepseek.json  — DeepSeek endpoint env + API key (Worker)
@@ -104,7 +116,7 @@ Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
 
 # 5. In any project directory, initialize the workflow
 cd C:\path\to\your\project
-cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
 ```
 
 Then use two terminals: `cc` for the Overseer, `cc-alt` for the Worker. Each silently injects the role into the system prompt (via `--append-system-prompt`, not sent as a chat message — your first message stays free for whatever you want to say) and reads `WORKFLOW.md` / `context.md` to restore state.
@@ -323,6 +335,10 @@ MIT — see [LICENSE](LICENSE).
 templates/   # markdown 模板 —— 平台无关,两端共用
 scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
+#              dual-model-mode.sh —— 工作模式规则,启动器调用它
+#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 第三者审查(K10)
+#              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh
+docs/design/ # 设计记录(模板为什么这么写)
 skills/      # allow-once —— 装进 ~/.claude/skills/
 linux/       # bash helper(cc / cc-alt / cc-init)—— source 进 ~/.bashrc
 windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
@@ -345,9 +361,9 @@ cp -r templates/. ~/.dual-model/templates/
 #   (尾部的 . 同时拷贝 .claude/ 等隐藏目录)
 #   (或:export DUAL_MODEL_TEMPLATES=/绝对路径/dual-model-workflow/templates)
 
-# 2b. 安装安全预检脚本(全局者每次审查前运行)
+# 2b. 安装脚本:安全预检(全局者每次审查前运行)、工作模式规则(cc / cc-alt 读取)、K10 第三者钩子与值班
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
 
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -358,7 +374,10 @@ source ~/.bashrc
 
 # 5. 在任意项目目录初始化工作流
 cd /你的/项目
-cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
+
+# 6. (比赛模式的项目)排上 K9 值班 —— 见 WORKFLOW.md「K10 第三者」
+#    */30 * * * * flock -n /tmp/k10-<项目>.lock ~/.claude/scripts/k10-watch.py /项目/路径 >> /日志/路径 2>&1
 ```
 
 > **命名提醒:** `cc` 会在交互 shell 里覆盖系统 C 编译器(`/usr/bin/cc`)。如果你做 C 开发,改掉 `linux/dual-model.sh` 里的函数名(如 `dm`、`dm-ds`、`dm-init`)。
@@ -374,12 +393,15 @@ cd dual-model-workflow
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
 Copy-Item -Recurse -Force templates\* "$env:USERPROFILE\.dual-model\templates\"
 Copy-Item -Recurse -Force templates\.claude "$env:USERPROFILE\.dual-model\templates\"
-#   (通配符不带隐藏目录,.claude/ 要单独复制一次)
+Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\templates\"
+#   (通配符不带隐藏目录,.claude/ 和 .workflow/ 要单独复制)
 #   (或:$env:DUAL_MODEL_TEMPLATES = "C:\绝对路径\dual-model-workflow\templates")
 
 # 2b. 安装安全预检脚本(在 Git Bash 下运行,Claude Code 自带)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
+#     K10 钩子 / 值班(Python)—— Windows 上尚未实测:先确认钩子 shell 里 `python3` 和 `$HOME` 能用
+Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
 #    ~\.claude\settings.deepseek.json  — DeepSeek 端点 env + API key(工作者)
@@ -391,7 +413,7 @@ Add-Content $PROFILE ". `"$PWD\windows\dual-model.ps1`""
 
 # 5. 在任意项目目录初始化工作流
 cd C:\你的\项目
-cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents}/
+cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
 ```
 
 然后开两个终端:`cc` 跑全局者,`cc-alt` 跑工作者。各自会把角色静默注入系统提示(通过 `--append-system-prompt`,不作为聊天消息发送——第一条消息仍留给你说别的)并读 `WORKFLOW.md` / `context.md` 恢复状态。

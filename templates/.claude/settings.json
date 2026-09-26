@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/scripts/k10-stop-gate.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/scripts/k10-subagent-report.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

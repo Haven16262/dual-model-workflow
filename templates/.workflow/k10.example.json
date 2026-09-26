@@ -1,0 +1,55 @@
+{
+  "_说明": "复制为 .workflow/k10.json；开工确认时由全局者按用户拍板的值填写，之后改动要用户同意。k10-watch.py 读它。k9 里的 ext_k / ext_count_above / day2_date + day2_cutline_pct / fixed_X 各管一条判据，不填（删掉该键或填 null）就不判那一条。",
+  "overseer_prefix": "<机器前缀->-<项目 slug>-overseer-",
+  "calendar": [
+    {
+      "id": "cal-day2",
+      "date": "YYYY-MM-DD",
+      "roles": [
+        "skeptic"
+      ]
+    },
+    {
+      "id": "cal-mid",
+      "date": "YYYY-MM-DD",
+      "roles": [
+        "skeptic",
+        "proposer"
+      ]
+    }
+  ],
+  "k9": {
+    "N": 6,
+    "slots_per_day": 3,
+    "end_date": "YYYY-MM-DD",
+    "target_rank": 10,
+    "ext_k": 5,
+    "ext_count_above": 5,
+    "day2_date": "YYYY-MM-DD",
+    "day2_cutline_pct": 3,
+    "fixed_X": null,
+    "roles": [
+      "skeptic",
+      "proposer"
+    ]
+  },
+  "roles": {
+    "skeptic": {
+      "template": ".workflow/templates/skeptic.md",
+      "model": "opus",
+      "effort": "high",
+      "timeout_s": 1800
+    },
+    "proposer": {
+      "template": ".workflow/templates/proposer.md",
+      "model": "opus",
+      "effort": "high",
+      "timeout_s": 1800,
+      "isolated": true,
+      "inputs": [
+        "<规则原文的相对路径>"
+      ]
+    }
+  },
+  "doorbell_model": "haiku"
+}
