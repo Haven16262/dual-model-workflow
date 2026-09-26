@@ -52,6 +52,8 @@ e() { # name regex env...
   check "effort/$name" 0 "$rc" "$out" "$re"
 }
 e default   '^high$'
+out=$(env -u DUAL_MODEL_MODEL "$MODE" model 2>&1); check model/default 0 $? "$out" '^opus$'
+out=$(DUAL_MODEL_MODEL=claude-opus-5-5 "$MODE" model 2>&1); check model/override 0 $? "$out" '^claude-opus-5-5$'
 e dm_xhigh  '^xhigh$'                          DUAL_MODEL_EFFORT=xhigh
 e dm_low    'WARNING: DUAL_MODEL_EFFORT=.medium.*using high'  DUAL_MODEL_EFFORT=medium
 e dm_upper  'WARNING: DUAL_MODEL_EFFORT=.HIGH'  DUAL_MODEL_EFFORT=HIGH
@@ -63,17 +65,19 @@ l() { # name role content rc_want regex [env...]
   local name=$1 role=$2 content=$3 rc_want=$4 re=$5; shift 5
   local d="$T/p-$name" out rc
   mkdir -p "$d"; touch "$d/WORKFLOW.md"; [ "$content" != NONE ] && printf '%b' "$content" > "$d/context.md"
-  out=$(cd "$d" && printf '%s\n\n' "$role" | env -u CLAUDE_CODE_EFFORT_LEVEL -u DUAL_MODEL_EFFORT \
+  out=$(cd "$d" && printf '%s\n\n' "$role" | env -u CLAUDE_CODE_EFFORT_LEVEL -u DUAL_MODEL_EFFORT -u DUAL_MODEL_MODEL \
         PATH="$T/bin:$PATH" DUAL_MODEL_SCRIPTS="$SCRIPTS" "$@" \
         bash -c ". \"$LAUNCHER\" >/dev/null 2>&1; cc; echo RC=\$?" 2>&1)
   rc=$(printf '%s\n' "$out" | sed -n 's/^RC=//p' | tail -1)
   check "launcher/$name" "$rc_want" "$rc" "$out" "$re"
 }
-NOEFF='^CLAUDE-ARGS:([^-]|-[^-]|--[^e])* ROLE='
+NOEFF='^CLAUDE-ARGS:([^-]|-[^-]|--[^em])* ROLE='   # neither --effort nor --model
 l nomode     1 "# ctx\n"                     0 'no workflow mode yet'
 l nomode_eff 1 "# ctx\n"                     0 "$NOEFF"
 l project    1 "workflow-mode: project\n"    0 "$NOEFF"
-l comp       1 "workflow-mode: competition\n" 0 '\[--effort\] \[high\] ROLE=overseer'
+l comp       1 "workflow-mode: competition\n" 0 '\[--model\] \[opus\] \[--effort\] \[high\] ROLE=overseer'
+l comp_model 1 "workflow-mode: competition\n" 0 '\[--model\] \[sonnet\]' DUAL_MODEL_MODEL=sonnet
+l project_nomodel 1 "workflow-mode: project\n" 0 '^CLAUDE-ARGS:([^-]|-[^-]|--[^m])* ROLE='
 l comp_envlo 1 "workflow-mode: competition\n" 0 '\[--effort\] \[high\] ROLE=overseer' CLAUDE_CODE_EFFORT_LEVEL=medium
 l comp_warn  1 "workflow-mode: competition\n" 0 'WARNING: CLAUDE_CODE_EFFORT_LEVEL' CLAUDE_CODE_EFFORT_LEVEL=medium
 l worker     2 "workflow-mode: competition\n" 0 'Workflow mode: competition \(knob.*ROLE=worker'

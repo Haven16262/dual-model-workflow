@@ -195,6 +195,7 @@ function _cc_launch_args {
   $a = @()
   if ($script:CC_SESSION_NAME) { $a += '--name'; $a += $script:CC_SESSION_NAME }
   if ($script:CC_ROLE_PROMPT)  { $a += '--append-system-prompt'; $a += $script:CC_ROLE_PROMPT }
+  if ($script:CC_MODEL)        { $a += '--model'; $a += $script:CC_MODEL }
   if ($script:CC_EFFORT)       { $a += '--effort'; $a += $script:CC_EFFORT }
   return ,$a
 }
@@ -210,10 +211,14 @@ function _cc_with_role_env([scriptblock]$run, [object[]]$rest) {
 # 全局者 — Claude（用 ~\.claude\settings.json 里的默认配置，不做任何切换）
 function cc {
   $script:CC_EFFORT = ""
+  $script:CC_MODEL = ""
   if (-not (_cc_workflow_prompt)) { return }
   if ($script:CC_MODE -eq 'competition' -and $script:CC_ROLE -eq '1') {
+    # 用户级默认模型是 sonnet（省额度）；比赛模式显式要 Opus（WORKFLOW.md K1），可用 DUAL_MODEL_MODEL 换。
+    # 与 scripts/dual-model-mode.sh 的 model 子命令同一规格。
+    $script:CC_MODEL = if ($env:DUAL_MODEL_MODEL) { $env:DUAL_MODEL_MODEL } else { 'opus' }
     _cc_competition_effort
-    Write-Host "  - Effort：--effort $($script:CC_EFFORT)（比赛模式默认）" -ForegroundColor Yellow
+    Write-Host "  - Model：--model $($script:CC_MODEL)；Effort：--effort $($script:CC_EFFORT)（比赛模式默认）" -ForegroundColor Yellow
   }
   $cliArgs = _cc_launch_args
   _cc_with_role_env { claude @cliArgs @args } $args
@@ -242,6 +247,7 @@ function cc-alt {
     return
   }
   $script:CC_EFFORT = ""
+  $script:CC_MODEL = ""
   if (-not (_cc_workflow_prompt)) { return }
   $cliArgs = _cc_launch_args
   _cc_with_role_env { claude --settings $altSettings @cliArgs @args } $args

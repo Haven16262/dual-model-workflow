@@ -208,7 +208,7 @@
 
 | # | 旋钮 | project | competition | 前提（competition 默认值） |
 |---|---|---|---|---|
-| K1 | 全局者模型 / effort | 现行：`cc` 不带 `--model`、不带 `--effort` | 默认模型（2026-09 为 Opus）；启动器照传 `--effort high`（可用 `DUAL_MODEL_EFFORT` 调高），环境变量更低时**只警告**；是否按阶段混用模型，开工时定 | 写在用户 settings 文件里的顶层 `effortLevel`，在 Opus 5.5 上实测没生效（2026-09-26，机制未查）；用 `/effort` 保存后写入的按模型 `modelSettings.<model>.effortLevel` 生效，换型号要重设 |
+| K1 | 全局者模型 / effort | 现行：`cc` 不带 `--model`、不带 `--effort`，用 settings.json 的默认模型（2026-09 为 sonnet） | 启动器**显式传** `--model opus`（可用 `DUAL_MODEL_MODEL` 换）和 `--effort high`（可用 `DUAL_MODEL_EFFORT` 调高），环境变量更低时只警告；是否按阶段混用模型，开工时定 | 用户级默认模型是 sonnet（省额度，用户 2026-09-26 定），要 Opus 必须显式传；写在用户 settings 文件里的顶层 `effortLevel`，在 Opus 5.5 上实测没生效（2026-09-26，机制未查）；用 `/effort` 保存后写入的按模型 `modelSettings.<model>.effortLevel` 生效，换型号要重设 |
 | K2 | 工作者模型 | DS flash（`cc-alt`） | 同左 | 待定（原依据是 K8 的旧写法，K8 已改） |
 | K3 | 全局者读什么 | 不读大量文件 | 在**方向检查点**放开：开局、K9 触发时、阶段切换时，可以读代码、数据、规则原文、外部公开信息 | 方向错误的代价高于额度 |
 | K4 | 验证强度 | 现行：安全预检 + critic | 另加：判读规则事先写死；测量装置自证保真，并报告它和官方分的相关性；逐字留档用脚本做，并断言目标状态 | 提交名额有限，读数不可重来 |

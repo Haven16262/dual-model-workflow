@@ -12,6 +12,12 @@
 #       workflow_mode, full-width colon, other case) with no exact line.
 #     Never falls back to a default silently. CR is stripped (CRLF files).
 #
+#   dual-model-mode.sh model
+#     stdout: the model to pass with --model for a competition-mode Overseer.
+#     Default opus; DUAL_MODEL_MODEL may override (any value `claude --model` accepts).
+#     Needed because the user-level default (settings.json "model") is sonnet to save
+#     quota (user decision 2026-09-26): Opus must be requested explicitly.
+#
 #   dual-model-mode.sh effort
 #     stdout: the effort to pass with --effort for a competition-mode Overseer.
 #     Default high; DUAL_MODEL_EFFORT may raise it. Warn-only (user decision
@@ -68,8 +74,11 @@ cmd_effort() {
   printf '%s\n' "$want"
 }
 
+cmd_model() { printf '%s\n' "${DUAL_MODEL_MODEL:-opus}"; }
+
 case "${1:-}" in
   mode) shift; cmd_mode "$@" ;;
+  model) cmd_model ;;
   effort) cmd_effort ;;
-  *) echo "usage: dual-model-mode.sh mode [context.md] | effort" >&2; exit 2 ;;
+  *) echo "usage: dual-model-mode.sh mode [context.md] | model | effort" >&2; exit 2 ;;
 esac

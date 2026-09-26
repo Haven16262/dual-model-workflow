@@ -157,16 +157,20 @@ _cc_workflow_prompt() {
 # Overseer — Claude (or whatever your default `claude` provider is)
 cc() {
   _cc_workflow_prompt || return 1
-  local _effort="" _role_env=""
+  local _effort="" _model="" _role_env=""
   if [ "$_CC_MODE" = competition ] && [ "$_CC_ROLE" = 1 ]; then
+    # The user-level default model is sonnet (saves quota); competition mode asks for
+    # Opus explicitly (WORKFLOW.md K1). Override with DUAL_MODEL_MODEL.
+    _model=$("$(_cc_mode_script)" model)
     _effort=$("$(_cc_mode_script)" effort)
-    echo "  - Effort: --effort ${_effort} (competition default)"
+    echo "  - Model: --model ${_model}; Effort: --effort ${_effort} (competition defaults)"
   fi
   # Role for hooks (e.g. the K10 forced-response Stop hook only gates the Overseer).
   case "$_CC_ROLE" in 1) _role_env=overseer ;; 2) _role_env=worker ;; esac
   DUAL_MODEL_ROLE="$_role_env" \
   claude ${_CC_SESSION_NAME:+--name} ${_CC_SESSION_NAME:+"$_CC_SESSION_NAME"} \
          ${_CC_ROLE_PROMPT:+--append-system-prompt} ${_CC_ROLE_PROMPT:+"$_CC_ROLE_PROMPT"} \
+         ${_model:+--model} ${_model:+"$_model"} \
          ${_effort:+--effort} ${_effort:+"$_effort"} "$@"
 }
 
