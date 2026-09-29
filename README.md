@@ -38,7 +38,7 @@ scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh (workflow-mode rules, called by the launchers)
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (third-party reviews, K10)
-#              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)
+#              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)  — Linux only; not ported to Windows
 docs/design/ # design records (why the templates say what they say)
 skills/      # allow-once — install into ~/.claude/skills/
 linux/       # bash helpers (cc / cc-alt / cc-init) — source into ~/.bashrc
@@ -339,7 +339,7 @@ scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh —— 工作模式规则,启动器调用它
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 第三者审查(K10)
-#              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh
+#              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh(测试套件只支持 Linux,未移植到 Windows)
 docs/design/ # 设计记录(模板为什么这么写)
 skills/      # allow-once —— 装进 ~/.claude/skills/
 linux/       # bash helper(cc / cc-alt / cc-init)—— source 进 ~/.bashrc

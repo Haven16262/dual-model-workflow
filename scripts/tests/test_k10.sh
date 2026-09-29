@@ -131,7 +131,7 @@ cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":1,"ext_k":5,"target_rank":1
 printf 'rank\tteam\tscore\tsubmissions\tbest_date\n1\ta\t900\t2\tx\n2\tb\t880\t3\tx\n' > "$P/.workflow/leaderboard.tsv"
 printf 'date\tpkg\tscore\nd\tp\t800\nd\tp\t801\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 j1
-expect J_state_untouched '[ $RC = 2 ] && python3 -c "import json,sys;d=json.load(open(sys.argv[1]));sys.exit(0 if d[\"position_fired\"] is False and d[\"k9_last_judged\"]==0 else 1)" "$P/.workflow/k10-state.json"'
+expect J_state_untouched '[ $RC = 2 ] && python3 -c "import json,sys;d=json.load(open(sys.argv[1], encoding=\"utf-8\"));sys.exit(0 if d[\"position_fired\"] is False and d[\"k9_last_judged\"]==0 else 1)" "$P/.workflow/k10-state.json"'
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":1,"ext_k":5,"target_rank":10,"fixed_X":5,"roles":["skeptic"]},'"$ROLES"'}'
 run_watch "$P" 2026-10-01 j2
 expect J_fires_after_fix '[ $RC = 0 ] && grep -rq "外部位置" "$P/.workflow/reports/"'
@@ -149,7 +149,7 @@ expect C_badtemplate '[ $RC = 0 ] && grep -q "触发 0 个，待办 0 个" <<<"$
 # 6j A: the settings.json hook command itself (missing script -> exit 0 + systemMessage; installed -> runs)
 TPL=$(cd "$S/../templates" && pwd)/.claude/settings.json
 for ev in Stop SubagentStop; do
-  c=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['hooks'][sys.argv[2]][0]['hooks'][0]['command'])" "$TPL" "$ev")
+  c=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1], encoding='utf-8'))['hooks'][sys.argv[2]][0]['hooks'][0]['command'])" "$TPL" "$ev")
   H=$T/home-$ev; mkdir -p "$H"
   OUT=$(echo '{}' | HOME="$H" sh -c "$c" 2>&1); RC=$?
   expect A_missing_$ev '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "未安装" <<<"$OUT"'
