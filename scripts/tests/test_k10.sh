@@ -156,6 +156,16 @@ for ev in Stop SubagentStop; do
   mkdir -p "$H/.claude/scripts"; cp "$S"/k10-*.py "$H/.claude/scripts/"
   OUT=$(echo '{"agent_type":"x"}' | HOME="$H" DUAL_MODEL_ROLE=worker sh -c "$c" 2>&1); RC=$?
   expect A_installed_$ev '[ $RC = 0 ] && ! grep -q "未安装" <<<"$OUT"'
+  # Windows (2026-09-29 MSI): Git Bash finds a Store stub named python3 that only prints "Python was not found".
+  # The hook must probe that the interpreter really runs and fall back to python, not fail open silently.
+  B=$T/bin-$ev; mkdir -p "$B"; REALPY=$(command -v python3)
+  printf '#!/bin/sh\necho "Python was not found"\nexit 9009\n' > "$B/python3"; ln -sf "$REALPY" "$B/python"; chmod +x "$B/python3"
+  E=$T/empty-$ev; mkdir -p "$E"
+  OUT=$(echo '{"agent_type":"x","stop_hook_active":false}' | HOME="$H" DUAL_MODEL_ROLE=overseer CLAUDE_PROJECT_DIR="$E" PATH="$B:$PATH" sh -c "$c" 2>&1); RC=$?
+  expect A_stub_python3_falls_back_$ev '[ $RC = 0 ] && ! grep -q "Python was not found" <<<"$OUT" && grep -q "k10-" <<<"$OUT"'
+  rm -f "$B/python"; printf '#!/bin/sh\nexit 9009\n' > "$B/python"; chmod +x "$B/python"
+  OUT=$(echo '{}' | HOME="$H" PATH="$B:$PATH" sh -c "$c" 2>&1); RC=$?
+  expect A_no_python_says_so_$ev '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "Python" <<<"$OUT" && ! grep -q "未安装" <<<"$OUT"'
 done
 # 7 proposer isolation: cwd outside project, project path not in prompt
 P=$T/p8; mkproj "$P" competition
@@ -178,6 +188,11 @@ G "$P" overseer false; G "$P" overseer true; G "$P" overseer true
 expect gate_3rd 'grep -q "第 3/3 次" <<<"$OUT"'
 G "$P" overseer true; expect gate_release '! grep -q "\"decision\"" <<<"$OUT" && grep -q "systemMessage" <<<"$OUT" && grep -q "这次放行" <<<"$OUT"'
 G "$P" overseer false; expect gate_newturn_resets 'grep -q "本回合第 1/3 次" <<<"$OUT"'
+# Windows locale (2026-09-29 MSI): stdout defaulted to GBK, CC can't parse the JSON and silently lets the turn end.
+# PYTHONIOENCODING=gbk reproduces that locale here; the block JSON must still be UTF-8.
+BYTES=$T/gate-gbk.out
+(cd "$P" && echo '{"stop_hook_active": false}' | env PYTHONIOENCODING=gbk DUAL_MODEL_ROLE=overseer CLAUDE_PROJECT_DIR="$P" python3 "$S/k10-stop-gate.py" > "$BYTES" 2>/dev/null)
+expect gate_stdout_utf8_under_gbk 'python3 -c "import json,sys;d=json.loads(open(sys.argv[1],\"rb\").read().decode(\"utf-8\"));sys.exit(0 if d[\"decision\"]==\"block\" and \"回应\" in d[\"reason\"] else 1)" "$BYTES"'
 OUT=$(cd "$P" && env -u DUAL_MODEL_ROLE CLAUDE_PROJECT_DIR="$P" python3 "$S/k10-stop-gate.py" --check < /dev/null 2>&1)
 expect gate_check_readonly 'grep -q "r2.md 缺 (无回应文件)" <<<"$OUT" && ! grep -q decision <<<"$OUT" && grep -q "\"count\": 1" "$P/.workflow/k10-gate.json"'
 # ---------------- subagent report
@@ -190,5 +205,8 @@ R "$P" '{"agent_type":"skeptic","agent_id":"a3","last_assistant_message":"S1 第
 expect rep_two 'ls "$P"/.workflow/reports/*-skeptic-a2.md "$P"/.workflow/reports/*-skeptic-a3.md >/dev/null && grep -q "S1 原文" "$P"/.workflow/reports/*-a2.md'
 R "$P" '{"agent_type":"verifier","agent_id":"a4","agent_transcript_path":"/t.jsonl"}'
 expect rep_nomsg 'grep -q "没有 last_assistant_message" "$P"/.workflow/reports/*-a4.md'
+# Windows locale: CC sends UTF-8 on stdin; under a GBK default the report text would be mangled.
+echo '{"agent_type":"skeptic","agent_id":"a5","last_assistant_message":"S1 中文原文"}' | env PYTHONIOENCODING=gbk CLAUDE_PROJECT_DIR="$P" python3 "$S/k10-subagent-report.py" >/dev/null 2>&1
+expect rep_stdin_utf8_under_gbk 'grep -q "S1 中文原文" "$P"/.workflow/reports/*-a5.md'
 if [ "$fail" -eq 0 ]; then echo "checked $n cases: all passed"; exit 0; fi
 echo "checked $n cases: $fail failed"; exit 1

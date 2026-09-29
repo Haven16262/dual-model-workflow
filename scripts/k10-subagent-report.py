@@ -14,6 +14,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Windows 本地编码是 GBK:CC 发来的 stdin 是 UTF-8,也按 UTF-8 解析我们的 stdout。
+# 不重设就会乱码,CC 解析失败时静默放行(2026-09-29 MSI 实测)。
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    _stream.reconfigure(encoding="utf-8")
+
 TYPES = set(os.environ.get("K10_AGENT_TYPES", "skeptic verifier proposer").split())
 
 

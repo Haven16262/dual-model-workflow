@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$HOME/.claude/scripts/k10-stop-gate.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
+            "command": "f=\"$HOME/.claude/scripts/k10-stop-gate.py\"; if [ -f \"$f\" ]; then for py in python3 python; do if \"$py\" -c \"\" >/dev/null 2>&1; then exec \"$py\" \"$f\"; fi; done; printf '{\"systemMessage\":\"K10 钩子找不到能运行的 Python(python3 / python 都跑不起来),本次不检查\"}\\n'; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"$HOME/.claude/scripts/k10-subagent-report.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
+            "command": "f=\"$HOME/.claude/scripts/k10-subagent-report.py\"; if [ -f \"$f\" ]; then for py in python3 python; do if \"$py\" -c \"\" >/dev/null 2>&1; then exec \"$py\" \"$f\"; fi; done; printf '{\"systemMessage\":\"K10 钩子找不到能运行的 Python(python3 / python 都跑不起来),本次不检查\"}\\n'; else printf '{\"systemMessage\":\"K10 钩子脚本未安装：%s（见 WORKFLOW.md「K10 第三者」部署），本次不检查\"}\\n' \"$f\"; fi"
           }
         ]
       }

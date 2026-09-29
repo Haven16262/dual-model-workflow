@@ -20,6 +20,11 @@ import re
 import sys
 from pathlib import Path
 
+# Windows 本地编码是 GBK:CC 发来的 stdin 是 UTF-8,也按 UTF-8 解析我们的 stdout。
+# 不重设就会乱码,CC 解析失败时静默放行(2026-09-29 MSI 实测)。
+for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    _stream.reconfigure(encoding="utf-8")
+
 MAX_BLOCKS = int(os.environ.get("K10_GATE_MAX_BLOCKS", "3"))
 VERDICT = re.compile(r"接受|驳回|交用户")
 ID = re.compile(r"(?<![A-Za-z0-9])S(\d+)(?![0-9])")

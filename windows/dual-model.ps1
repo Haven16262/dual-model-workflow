@@ -277,7 +277,8 @@ function cc-init {
       if (-not (Test-Path ".claude\agents\$($_.Name)")) { Copy-Item $_.FullName .claude\agents\ }
     }
     # K10 钩子（Stop = 强制回应，SubagentStop = 报告落盘）。已有 settings.json 就不覆盖，提示手动合并。
-    # 注意：钩子命令写的是 python3 "$HOME/..."，在 Windows 上未实测（python 可执行名、$HOME 展开都要在 MSI 上确认）。
+    # 注意：钩子命令依次试 python3、python，只用真能跑起来的那个（Git Bash 里的 python3 可能是商店占位符）；
+    # $HOME 在 Git Bash 下展开为 /c/Users/<名>（2026-09-29 MSI 实测）。CC 里端到端待测。
     if (-not (Test-Path "$env:USERPROFILE\.claude\scripts\k10-stop-gate.py")) {
       Write-Host "  注意：~\.claude\scripts\ 下没有 K10 钩子脚本；钩子只会提示「未安装」。先按 README 安装 scripts\。" -ForegroundColor Yellow
     }

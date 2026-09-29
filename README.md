@@ -102,8 +102,10 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 # 2b. Install the security precheck script (runs under Git Bash, which Claude Code ships with)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
-#     K10 hooks / watcher (Python) — NOT yet tested on Windows: check that `python3` and `$HOME`
-#     resolve in the hook shell before relying on them
+#     K10 hooks (Python): the hook command tries python3 then python and only uses one that
+#     actually runs (Git Bash may find a Store stub named python3); scripts force UTF-8 I/O.
+#     2026-09-29: byte-level checked on MSI; end-to-end in CC still pending. k10-watch.py needs
+#     cron + flock and is NOT set up for Windows.
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. Prepare the settings file for model switching (NEVER commit the key)
@@ -400,7 +402,9 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 # 2b. 安装安全预检脚本(在 Git Bash 下运行,Claude Code 自带)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
-#     K10 钩子 / 值班(Python)—— Windows 上尚未实测:先确认钩子 shell 里 `python3` 和 `$HOME` 能用
+#     K10 钩子(Python):钩子命令依次试 python3、python,只用真能跑起来的那个(Git Bash 里的 python3
+#     可能是商店占位符);脚本强制 UTF-8 输入输出。2026-09-29 MSI 已测到字节层,CC 里端到端待测。
+#     值班 k10-watch.py 依赖 cron + flock,Windows 上没有配。
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
