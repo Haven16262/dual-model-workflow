@@ -205,8 +205,8 @@ It prompts even under `bypassPermissions`.
 >
 > 同时有一条**本文档没有的第三条通道正在试**：**黑板**（一个带 `db` 能力的 Artifact），
 > 只承载「**现在怎样**」这类可变的当前状态 —— 仓库答「当时怎样」，`SendMessage` 答「你现在就该动了」。
-> ⚠️ **协议未定稿，不要照搬**；进度与判据在 `drafts/cross-session-protocol/`
-> （`交接卡.md` 是入口），信件档案在 `project-channel` 的 `channels/20260910-跨会话消息效率/`。
+> ✅ **协议已定稿 v1（2026-09-13）**，规格见 `project-channel` 的 `protocols/SPEC.md`；
+> 原 `drafts/cross-session-protocol/` 已于 2026-09-30 删除。信件档案在 `project-channel` 的 `channels/20260910-跨会话消息效率/`。
 >
 > ⭐ 本文档下面那句「**如果你发现消息写得越来越长、开始塞内容进去，那不是通道不够用，是流程走样了**」
 > 在 2026-09-10 那轮实测里被逐字验证：**有落点 39 字 vs 无落点 833 字，落点主导 21x，通道只占 1.5x。**
