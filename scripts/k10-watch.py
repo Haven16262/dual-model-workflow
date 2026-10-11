@@ -10,11 +10,14 @@ WORKFLOW.md「工作模式与旋钮表」K9、K10 两行的机械部分。由 cr
   3. 判定三类触发：
      - calendar：日历条目的日期 ≤ 今天（UTC），且还没触发过；
      - k9_position：外部位置。最好分 < 「提交次数 ≤ ext_k 的队伍」的分数中位数，或者这些队伍里
-       高于我们的队数 ≥ ext_count_above。边沿触发：触发一次后，要等条件解除再重新布防；
+       高于我们的队数 ≥ ext_count_above（绝对数）或 ≥ ext_count_above_pct%×该组队数（取整下限，至少 1；
+       两个键二选一，都填算配置错误）。边沿触发：触发一次后，要等条件解除再重新布防；
      - k9_day2：到 day2_date 后，最好分 < 截线 × (1 − day2_cutline_pct%)，只触发一次；
      - k9_stall：停滞。已读出分数的包比上次判定多了至少 N 个时才判：
-       近 N 包增量 ÷ N × 剩余名额 < 距目标差（有排行榜时；剩余名额只算今天之后的天数）；
-       没有排行榜时，用近 N 包合计增量 < fixed_X。
+       增量 = 近 N 包原始分的平均 − 此前（至多 N 包）原始分的平均，不用「当前最好分」序列
+       （累计最大值靠噪声就会涨 1 题，把增量推高）；
+       增量 ÷ N × 剩余名额 < 距目标差（有排行榜时；剩余名额只算今天之后的天数）；
+       没有排行榜时，用增量 × N < fixed_X（即近 N 包合计增量口径）。
   4. 触发先按（触发, 角色）入队并落盘，再逐个启动第三者（`claude -p`）。成功的报告原样写进
      `.workflow/reports/`；失败的记录写进 `.workflow/k10-failures/`（不进 reports，免得 Stop 钩子
      要求回应一份失败记录），下一轮重试，累计 MAX_ATTEMPTS 次仍失败就放弃并记日志。
@@ -79,6 +82,23 @@ def best_series(scores):
     return out
 
 
+def mean_gain(scores, n):
+    """近 n 包原始分的平均 − 此前至多 n 包原始分的平均。调用方保证 len(scores) ≥ n+1。"""
+    vals = [float(r["score"]) for r in scores]
+    prior = vals[:-n][-n:]
+    return statistics.fmean(vals[-n:]) - statistics.fmean(prior)
+
+
+def count_threshold(k9, group_size):
+    """「高于我们的队数」阈值：绝对数 ext_count_above，或按组规模的比例 ext_count_above_pct（%）。"""
+    abs_, pct = k9.get("ext_count_above"), k9.get("ext_count_above_pct")
+    if abs_ is not None and pct is not None:
+        raise ValueError("k9 同时填了 ext_count_above 和 ext_count_above_pct，只能留一个")
+    if pct is not None:
+        return max(1, int(group_size * pct / 100))
+    return abs_
+
+
 def judge_calendar(cfg, state):
     """日历判定。和 K9 分开算：K9 出错不能连累日历（verifier 第十轮 D）。"""
     checked, triggers = [], []
@@ -118,8 +138,9 @@ def judge_k9(cfg, state, scores, board):
             above = sum(1 for v in low if v > best)
             if best < med:
                 why.append(f"最好分 {best:.2f} < 提交 ≤{k9['ext_k']} 次队伍的中位数 {med:.2f}（{len(low)} 队）")
-            if k9.get("ext_count_above") is not None and above >= k9["ext_count_above"]:
-                why.append(f"提交 ≤{k9['ext_k']} 次的队伍里有 {above} 队高于我们（阈值 {k9['ext_count_above']}）")
+            thr = count_threshold(k9, len(low))
+            if thr is not None and above >= thr:
+                why.append(f"提交 ≤{k9['ext_k']} 次的队伍里有 {above} 队高于我们（阈值 {thr}）")
         if why and not state["position_fired"]:
             triggers.append({"kind": "k9_position", "id": f"pos-{len(series)}", "roles": roles,
                              "reason": "外部位置：" + "；".join(why)})
@@ -135,17 +156,17 @@ def judge_k9(cfg, state, scores, board):
     n = k9["N"]
     checked.append("k9_stall")
     if len(series) - state["k9_last_judged"] >= n and len(series) >= n + 1:
-        gain = series[-1] - series[-1 - n]
+        gain = mean_gain(scores, n)
         remaining = k9.get("remaining_slots")
         if remaining is None and "end_date" in k9 and "slots_per_day" in k9:
             remaining = max(0, (date.fromisoformat(k9["end_date"]) - t).days) * k9["slots_per_day"]
         if cutline is not None and remaining is not None:
             proj_gain = gain / n * remaining
             fired = proj_gain < cutline - series[-1]
-            why = f"近 {n} 包增量 {gain:.2f}，÷{n}×剩余 {remaining} 名额 = {proj_gain:.2f} < 距截线 {cutline - series[-1]:.2f}"
+            why = f"近 {n} 包均值增量 {gain:.2f}，÷{n}×剩余 {remaining} 名额 = {proj_gain:.2f} < 距截线 {cutline - series[-1]:.2f}"
         elif k9.get("fixed_X") is not None:
-            fired = gain < k9["fixed_X"]
-            why = f"近 {n} 包合计增量 {gain:.2f} < X={k9['fixed_X']}"
+            fired = gain * n < k9["fixed_X"]
+            why = f"近 {n} 包合计增量 {gain * n:.2f} < X={k9['fixed_X']}"
         else:
             raise ValueError("k9 既没有排行榜截线 + 剩余名额，也没有 fixed_X，停滞判据算不出")
         state["k9_last_judged"] = len(series)

@@ -58,14 +58,34 @@ expect cal_once '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
 P=$T/p4; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":3,"slots_per_day":3,"end_date":"2026-10-03","target_rank":2,"roles":["skeptic"]},'"$ROLES"'}'
 printf 'rank\tteam\tscore\tsubmissions\tbest_date\n1\ta\t900\t20\tx\n2\tb\t890\t10\tx\n3\tc\t800\t1\tx\n' > "$P/.workflow/leaderboard.tsv"
-printf 'date\tpkg\tscore\nd\tp\t700\nd\tp\t750\nd\tp\t800\n' > "$P/.workflow/scores.tsv"
+printf 'date\tpkg\tscore\nd\tp\t800\nd\tp\t800\nd\tp\t800\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 f
 expect stall_too_few '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
-printf 'd\tp\t801\nd\tp\t801\nd\tp\t802\n' >> "$P/.workflow/scores.tsv"
+printf 'd\tp\t801\nd\tp\t800\nd\tp\t801\n' >> "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 g
 expect stall_fire '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && ls "$P"/.workflow/reports/*-skeptic-stall-6.md >/dev/null 2>&1'
 run_watch "$P" 2026-10-01 h
 expect stall_wait_N '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
+# 4b stall uses mean of raw scores: a noise-driven +4 on the best (old rule would project 8 > gap 5 and stay silent) still fires
+P=$T/p4b; mkproj "$P" competition
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":3,"slots_per_day":3,"end_date":"2026-10-03","target_rank":2,"roles":["skeptic"]},'"$ROLES"'}'
+printf 'rank\tteam\tscore\tsubmissions\tbest_date\n1\ta\t900\t20\tx\n2\tb\t809\t10\tx\n3\tc\t800\t1\tx\n' > "$P/.workflow/leaderboard.tsv"
+printf 'date\tpkg\tscore\nd\tp\t800\nd\tp\t800\nd\tp\t800\nd\tp\t804\nd\tp\t799\nd\tp\t799\n' > "$P/.workflow/scores.tsv"
+run_watch "$P" 2026-10-01 f2
+expect stall_noise_fires '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "均值增量" "$P/.workflow/reports/"'
+# 5b ext_count_above_pct: 10 low-submission teams, 4 above us; pct=40 -> threshold 4 fires, pct=50 -> 5 does not, both keys -> exit 2
+P=$T/p5b; mkproj "$P" competition
+{ printf 'rank\tteam\tscore\tsubmissions\tbest_date\n'; for i in 1 2 3 4; do printf '%s\tt%s\t%s\t2\tx\n' $i $i 900; done; for i in 5 6 7 8 9 10; do printf '%s\tt%s\t%s\t2\tx\n' $i $i 100; done; } > "$P/.workflow/leaderboard.tsv"
+printf 'date\tpkg\tscore\nd\tp\t500\n' > "$P/.workflow/scores.tsv"
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":50,"slots_per_day":3,"end_date":"2026-10-03","ext_k":5,"ext_count_above_pct":50,"roles":["skeptic"]},'"$ROLES"'}'
+run_watch "$P" 2026-10-01 pa
+expect pct_not_reached '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":50,"slots_per_day":3,"end_date":"2026-10-03","ext_k":5,"ext_count_above_pct":40,"roles":["skeptic"]},'"$ROLES"'}'
+run_watch "$P" 2026-10-01 pb
+expect pct_reached '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "4 队高于我们（阈值 4）" "$P/.workflow/reports/"'
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":50,"slots_per_day":3,"end_date":"2026-10-03","ext_k":5,"ext_count_above":4,"ext_count_above_pct":40,"roles":["skeptic"]},'"$ROLES"'}'
+run_watch "$P" 2026-10-01 pc
+expect pct_both_keys '[ $RC = 2 ] && grep -q "只能留一个" <<<"$OUT"'
 # 5 external position: below median of low-submission teams fires once (edge)
 P=$T/p5; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":50,"slots_per_day":3,"end_date":"2026-10-03","ext_k":5,"roles":["skeptic"]},'"$ROLES"'}'
@@ -77,10 +97,10 @@ run_watch "$P" 2026-10-01 j
 expect pos_edge '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
 # 6 fixed_X fallback without leaderboard; neither computable -> exit 2
 P=$T/p6; mkproj "$P" competition
-cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"fixed_X":5,"roles":["skeptic"]},'"$ROLES"'}'
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"fixed_X":6,"roles":["skeptic"]},'"$ROLES"'}'
 printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 k
-expect fixedX '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "合计增量 3.00 < X=5" "$P/.workflow/reports/"'
+expect fixedX '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "合计增量 5.00 < X=6" "$P/.workflow/reports/"'
 P=$T/p7; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"roles":["skeptic"]},'"$ROLES"'}'
 printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
@@ -121,7 +141,7 @@ run_watch "$P" 2026-10-02 l10
 expect day2_once '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
 # 6b malformed scores.tsv -> exit 2 with reason
 P=$T/p6b; mkproj "$P" competition
-cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"fixed_X":5,"roles":["skeptic"]},'"$ROLES"'}'
+cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"fixed_X":6,"roles":["skeptic"]},'"$ROLES"'}'
 printf 'date\tpkg\tscore\nd\tp\tabc\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 k2
 expect bad_tsv '[ $RC = 2 ] && grep -q "判定失败" <<<"$OUT"'
