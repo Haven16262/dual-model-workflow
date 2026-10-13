@@ -13,9 +13,11 @@ WORKFLOW.md「工作模式与旋钮表」K9、K10 两行的机械部分。由 cr
        高于我们的队数 ≥ ext_count_above（绝对数）或 ≥ ext_count_above_pct%×该组队数（取整下限，至少 1；
        两个键二选一，都填算配置错误）。边沿触发：触发一次后，要等条件解除再重新布防；
      - k9_day2：到 day2_date 后，最好分 < 截线 × (1 − day2_cutline_pct%)，只触发一次；
-     - k9_stall：停滞。已读出分数的包比上次判定多了至少 N 个时才判：
-       增量 = 近 N 包原始分的平均 − 此前（至多 N 包）原始分的平均，不用「当前最好分」序列
+     - k9_stall：停滞。已读出分数的包比上次判定多了至少 N 个、且总数 ≥ 2N 时才判（两个窗口都要满）：
+       增量 = 近 N 包原始分的平均 − 此前 N 包原始分的平均，不用「当前最好分」序列
        （累计最大值靠噪声就会涨 1 题，把增量推高）；
+       最好分已不低于截线时，距目标差 ≤ 0，只有增量为负才可能触发，且还要下降超过 2 倍标准误
+       （否则离散分数的纯噪声每次判定约 16–22% 误报）；最好分低于截线时不加这条；
        增量 ÷ N × 剩余名额 < 距目标差（有排行榜时；剩余名额只算今天之后的天数）；
        没有排行榜时，用增量 × N < fixed_X（即近 N 包合计增量口径）。
   4. 触发先按（触发, 角色）入队并落盘，再逐个启动第三者（`claude -p`）。成功的报告原样写进
@@ -83,10 +85,12 @@ def best_series(scores):
 
 
 def mean_gain(scores, n):
-    """近 n 包原始分的平均 − 此前至多 n 包原始分的平均。调用方保证 len(scores) ≥ n+1。"""
+    """(增量, 标准误)。增量 = 近 n 包原始分的平均 − 此前 n 包原始分的平均；标准误是这个差的标准误（n<2 时为 0）。
+    调用方保证 len(scores) ≥ 2n，两个窗口都满 n 个、中心相距 n 包（prior 不满时斜率会被高估 2n/(n+1) 倍，且噪声最大）。"""
     vals = [float(r["score"]) for r in scores]
-    prior = vals[:-n][-n:]
-    return statistics.fmean(vals[-n:]) - statistics.fmean(prior)
+    cur, prior = vals[-n:], vals[-2 * n:-n]
+    se = 0.0 if n < 2 else (statistics.variance(cur) / n + statistics.variance(prior) / n) ** 0.5
+    return statistics.fmean(cur) - statistics.fmean(prior), se
 
 
 def count_threshold(k9, group_size):
@@ -155,14 +159,17 @@ def judge_k9(cfg, state, scores, board):
     # ② 停滞：新包满 N 个才判。剩余名额只算今天之后的天数（今天的名额视为已用或正在用）。
     n = k9["N"]
     checked.append("k9_stall")
-    if len(series) - state["k9_last_judged"] >= n and len(series) >= n + 1:
-        gain = mean_gain(scores, n)
+    if len(series) - state["k9_last_judged"] >= n and len(series) >= 2 * n:
+        gain, se = mean_gain(scores, n)
         remaining = k9.get("remaining_slots")
         if remaining is None and "end_date" in k9 and "slots_per_day" in k9:
             remaining = max(0, (date.fromisoformat(k9["end_date"]) - t).days) * k9["slots_per_day"]
         if cutline is not None and remaining is not None:
             proj_gain = gain / n * remaining
-            fired = proj_gain < cutline - series[-1]
+            gap = cutline - series[-1]
+            fired = proj_gain < gap
+            if gap <= 0:  # 已过线：只有均值下降且超过 2 倍标准误才算（分数是整题数的离散值，纯噪声会把均值差推到阈值外）
+                fired = fired and gain < -2 * se
             why = f"近 {n} 包均值增量 {gain:.2f}，÷{n}×剩余 {remaining} 名额 = {proj_gain:.2f} < 距截线 {cutline - series[-1]:.2f}"
         elif k9.get("fixed_X") is not None:
             fired = gain * n < k9["fixed_X"]

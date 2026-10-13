@@ -73,6 +73,28 @@ printf 'rank\tteam\tscore\tsubmissions\tbest_date\n1\ta\t900\t20\tx\n2\tb\t809\t
 printf 'date\tpkg\tscore\nd\tp\t800\nd\tp\t800\nd\tp\t800\nd\tp\t804\nd\tp\t799\nd\tp\t799\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 f2
 expect stall_noise_fires '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "均值增量" "$P/.workflow/reports/"'
+# 4c stall edge cases: first judgement needs 2N packs (5 packs, N=3 -> unjudged); over the cutline noise stays silent, a clear drop fires; N=1; remaining=0
+mk4() { # dir N end_date scores-rows(tab-separated lines) cutline
+  local d=$1; mkproj "$d" competition
+  cfg "$d" '{"overseer_prefix":"x-overseer-","k9":{"N":'"$2"',"slots_per_day":3,"end_date":"'"$3"'","target_rank":2,"roles":["skeptic"]},'"$ROLES"'}'
+  printf 'rank\tteam\tscore\tsubmissions\tbest_date\n1\ta\t900\t20\tx\n2\tb\t%s\t10\tx\n3\tc\t100\t1\tx\n' "$5" > "$d/.workflow/leaderboard.tsv"
+  { printf 'date\tpkg\tscore\n'; for v in $4; do printf 'd\tp\t%s\n' "$v"; done; } > "$d/.workflow/scores.tsv"
+}
+P=$T/p4c1; mk4 "$P" 3 2026-10-03 "800 800 800 804 799" 809
+run_watch "$P" 2026-10-01 f3
+expect stall_needs_2N '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT" && grep -q "\"k9_last_judged\": 0" "$P/.workflow/k10-state.json"'
+P=$T/p4c2; mk4 "$P" 3 2026-10-03 "800 790 810 795 805 800" 700
+run_watch "$P" 2026-10-01 f4
+expect stall_overline_noise_quiet '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT" && grep -q "\"k9_last_judged\": 6" "$P/.workflow/k10-state.json"'
+P=$T/p4c3; mk4 "$P" 3 2026-10-03 "800 801 800 700 701 700" 700
+run_watch "$P" 2026-10-01 f5
+expect stall_overline_drop_fires '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT"'
+P=$T/p4c4; mk4 "$P" 1 2026-10-03 "800 800" 809
+run_watch "$P" 2026-10-01 f6
+expect stall_N1 '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT"'
+P=$T/p4c5; mk4 "$P" 3 2026-09-01 "800 800 800 804 799 799" 809
+run_watch "$P" 2026-10-01 f7
+expect stall_remaining0_under_line '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT"'
 # 5b ext_count_above_pct: 10 low-submission teams, 4 above us; pct=40 -> threshold 4 fires, pct=50 -> 5 does not, both keys -> exit 2
 P=$T/p5b; mkproj "$P" competition
 { printf 'rank\tteam\tscore\tsubmissions\tbest_date\n'; for i in 1 2 3 4; do printf '%s\tt%s\t%s\t2\tx\n' $i $i 900; done; for i in 5 6 7 8 9 10; do printf '%s\tt%s\t%s\t2\tx\n' $i $i 100; done; } > "$P/.workflow/leaderboard.tsv"
@@ -98,19 +120,19 @@ expect pos_edge '[ $RC = 0 ] && grep -q "触发 0 个" <<<"$OUT"'
 # 6 fixed_X fallback without leaderboard; neither computable -> exit 2
 P=$T/p6; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"fixed_X":6,"roles":["skeptic"]},'"$ROLES"'}'
-printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
+printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 k
 expect fixedX '[ $RC = 0 ] && grep -q "触发 1 个" <<<"$OUT" && grep -rq "合计增量 5.00 < X=6" "$P/.workflow/reports/"'
 P=$T/p7; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","k9":{"N":2,"roles":["skeptic"]},'"$ROLES"'}'
-printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
+printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 l
 expect k9_uncomputable '[ $RC = 2 ] && grep -q "算不出" <<<"$OUT"'
 expect k9_error_recorded 'grep -q "\"last_k9_error\": \"20" "$P/.workflow/k10-state.json"'
 # 6c K9 error must not swallow a due calendar entry (verifier round 10 D)
 P=$T/p7c; mkproj "$P" competition
 cfg "$P" '{"overseer_prefix":"x-overseer-","calendar":[{"id":"cz","date":"2026-01-01","roles":["skeptic"]}],"k9":{"N":2,"roles":["skeptic"]},'"$ROLES"'}'
-printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
+printf 'date\tpkg\tscore\nd\tp\t10\nd\tp\t10\nd\tp\t12\nd\tp\t13\n' > "$P/.workflow/scores.tsv"
 run_watch "$P" 2026-10-01 l2
 expect cal_despite_k9 '[ $RC = 2 ] && grep -q "日历照常判" <<<"$OUT" && ls "$P"/.workflow/reports/*-skeptic-cz.md >/dev/null 2>&1'
 # 6d failure: not in reports/, retried once next run, then given up; state saved
