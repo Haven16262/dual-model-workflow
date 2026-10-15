@@ -81,6 +81,7 @@ scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)  — Linux only; not ported to Windows
 docs/design/ # design records (why the templates say what they say)
 skills/      # allow-once — install into ~/.claude/skills/
+channel-starter/ # optional: starter kit for a dedicated letter-channel repository (see CROSS-MACHINE.md)
 linux/       # bash helpers (cc / cc-alt / cc-init) — source into ~/.bashrc
 windows/     # PowerShell helpers (same commands) — dot-source into $PROFILE
 ```
@@ -430,6 +431,7 @@ scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash
 #              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh(测试套件只支持 Linux,未移植到 Windows)
 docs/design/ # 设计记录(模板为什么这么写)
 skills/      # allow-once —— 装进 ~/.claude/skills/
+channel-starter/ # 可选:专用信件信道仓库的起步包(见 CROSS-MACHINE.md)
 linux/       # bash helper(cc / cc-alt / cc-init)—— source 进 ~/.bashrc
 windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
 ```

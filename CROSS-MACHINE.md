@@ -64,7 +64,7 @@ Two cases; don't conflate them.
 
 **Two different projects, negotiating over the long haul → build one.** Here there is no shared project repository to fall back on, and the alternative in practice is a human copy-pasting between machines. That loses messages: in one real channel, two were lost, and both were errata — the one kind of message whose loss doesn't cost you information but leaves a known error alive in the other side's records under the guise of being correct. One letter per file per commit fixes that structurally: commits don't vanish, and a gap in the numbering is the alarm.
 
-That is a different mechanism with its own protocol, not something this document defines. What carries over unchanged is the iron rule: **the letter goes in the repository, the message is only a pointer to it.**
+That is a different mechanism with its own protocol, not something this document defines. A minimal starter kit for such a channel — layout, letter template, and a gate script the reader runs after every pull — is in [`channel-starter/`](channel-starter/). What carries over unchanged is the iron rule: **the letter goes in the repository, the message is only a pointer to it.**
 
 On tokens: **the message isn't the expensive part — rebuilding context on the receiving end is.** A pointer message is a few hundred tokens, which rounds to nothing. The real cost is the receiver understanding the current state after reading the file, and that cost exists no matter what channel you use — which is exactly what the "Current State" block in `context.md` is there to compress.
 
@@ -226,7 +226,7 @@ It prompts even under `bypassPermissions`.
 
 **两个不同项目长期协商 → 建。** 这类信道没有共享项目仓库可依托，现实中的替代方案就是人工在两台机器之间转发——而人工转发会丢信。真实案例：一条跑了三周的信道丢过两封，**两封都是勘误**，而勘误是唯一一类「丢了不是少一条信息，而是让一条已知错误在对方档案里继续以正确身份存活」的消息。一封信一个文件一个 commit 能从结构上消掉它：commit 不会丢，编号断号就是告警。
 
-那是另一套机制，有自己的协议，不由本文档定义。**不变的是铁律：信件进仓库，消息只是指向它的指针。**
+那是另一套机制，有自己的协议，不由本文档定义。这类信道的最小起步包——目录布局、信件模板、读方每次 pull 后跑的闸门脚本——在 [`channel-starter/`](channel-starter/)。**不变的是铁律：信件进仓库，消息只是指向它的指针。**
 
 > （下面这段指针指向作者自己的私有仓库和内部档案，是留给作者自己的会话找路用的；外部读者可以直接跳过，不影响上文任何一条规则。）
 >
