@@ -40,8 +40,8 @@ This repository is a set of templates and shell helpers that sit **on top of** t
 2. **A model for each role, and a way to authenticate to it.** A Claude account is optional. Each role is just a `claude` process pointed at some model endpoint:
    - `cc` (Overseer) uses whatever your default `claude` configuration points at — a Claude login, or `ANTHROPIC_*` environment variables / `settings.json`, see "Using models other than Claude" below.
    - `cc-alt` (Worker) ships with one example, DeepSeek's Anthropic-compatible endpoint, so the Quick start asks for a `DEEPSEEK_API_KEY`. For another endpoint, edit the environment variables in `cc-alt`.
-   - Both roles may be non-Claude models. Not tested here: a machine that has never signed in to Claude at all — the author's machines all have a Claude login, so the first-run screen on a clean machine may differ.
-3. **Shell and tools.** Linux / macOS: bash and git. Windows: PowerShell plus Git for Windows (Git Bash). Python 3 is needed only for the optional pieces below.
+   - Both roles may be non-Claude models. Checked on 2026-10-15 (Claude Code 2.1.300, Linux): in a fresh home directory with no Claude login at all, `claude -p` with only `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and the model variables pointed at DeepSeek's Anthropic-compatible endpoint returned a normal answer and created no credentials file. Not checked: the interactive first-run screens (print mode skips them), or other endpoints. Note that Claude Code's own setup docs say it requires a Claude or Console account, or a supported cloud provider — a third-party Anthropic-compatible endpoint works today but is outside what those docs promise, so it may change.
+3. **Shell and tools.** Linux / macOS: bash and git. Windows: PowerShell plus Git for Windows — Git Bash comes with it, and the security precheck script needs bash. (Claude Code itself does not need Git for Windows: without it, it falls back to PowerShell for shell commands.) Python 3 is needed only for the optional pieces below.
 4. **Claude Code version.** Developed and tested on Claude Code 2.1.x (latest check: 2.1.300, on Linux). Only the cross-session notification feature has a verified version floor (see "Let the sessions notify each other"); no other floor has been checked, so if something behaves differently, upgrade Claude Code first.
 
 **What is core, what is optional.** The Quick start sets up the core: the templates, the helper (`cc` / `cc-alt` / `cc-init`), and the security precheck. These are optional extras — skip them on a first run:
@@ -148,7 +148,7 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 #   (the wildcard skips hidden dirs, so .claude/ and .workflow/ need their own copy)
 #   (or: $env:DUAL_MODEL_TEMPLATES = "C:\abs\path\to\dual-model-workflow\templates")
 
-# 2b. Install the security precheck script (runs under Git Bash, which Claude Code ships with)
+# 2b. Install the security precheck script (runs under Git Bash, which comes with Git for Windows — Claude Code does not ship it)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     K10 hooks (optional, Python): the hook command tries python3 then python and only uses one that
@@ -388,8 +388,8 @@ MIT — see [LICENSE](LICENSE).
 2. **每个角色一个模型,以及登录它的方式。** Claude 账号不是必须的。每个角色本质上就是一个指向某个模型端点的 `claude` 进程:
    - `cc`(全局者)用你默认的 `claude` 配置指向的模型——Claude 登录,或 `ANTHROPIC_*` 环境变量 / `settings.json`,见下面「使用 Claude 以外的模型」。
    - `cc-alt`(工作者)自带一个示例:DeepSeek 的 Anthropic 兼容端点,所以快速开始需要 `DEEPSEEK_API_KEY`。换别的端点就改 `cc-alt` 里的环境变量。
-   - 两个角色都可以是非 Claude 模型。这里**没有测过**:一台从未登录过 Claude 的机器——作者的机器都有 Claude 登录,干净机器上的首次启动界面可能不同。
-3. **Shell 与工具。** Linux / macOS:bash 和 git。Windows:PowerShell 加 Git for Windows(Git Bash)。Python 3 只有下面的可选部分才需要。
+   - 两个角色都可以是非 Claude 模型。2026-10-15 核对过(Claude Code 2.1.300,Linux):在一个全新的 home 目录里、完全没有 Claude 登录,只设 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 和模型变量指向 DeepSeek 的 Anthropic 兼容端点,`claude -p` 正常返回,也没有生成凭据文件。**没有核对**:交互式的首次启动界面(print 模式会跳过它),以及其它端点。注意 Claude Code 自己的安装文档写的是需要 Claude 或 Console 账号、或受支持的云 provider——第三方 Anthropic 兼容端点现在能用,但不在文档承诺的范围内,将来可能变。
+3. **Shell 与工具。** Linux / macOS:bash 和 git。Windows:PowerShell 加 Git for Windows——Git Bash 随它提供,安全预检脚本需要 bash。(Claude Code 本身不依赖 Git for Windows:没装时它退回用 PowerShell 执行命令。)Python 3 只有下面的可选部分才需要。
 4. **Claude Code 版本。** 在 Claude Code 2.1.x 上开发和测试(最近一次核对:Linux 上 2.1.300)。只有跨会话通知有核实过的版本下限(见「让会话自己通知对方」);其余没有核实过下限,行为不对时先升级 Claude Code。
 
 **核心与可选。** 快速开始装的是核心:模板、helper(`cc` / `cc-alt` / `cc-init`)和安全预检。下面这些是可选项,第一次跑可以全部跳过:
@@ -494,7 +494,7 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 #   (通配符不带隐藏目录,.claude/ 和 .workflow/ 要单独复制)
 #   (或:$env:DUAL_MODEL_TEMPLATES = "C:\绝对路径\dual-model-workflow\templates")
 
-# 2b. 安装安全预检脚本(在 Git Bash 下运行,Claude Code 自带)
+# 2b. 安装安全预检脚本(在 Git Bash 下运行,Git Bash 随 Git for Windows 提供,Claude Code 并不自带)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     K10 钩子(可选,Python):钩子命令依次试 python3、python,只用真能跑起来的那个(Git Bash 里的 python3

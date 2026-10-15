@@ -119,7 +119,7 @@ Windows filesystems are case-insensitive, Linux ones aren't. Two files differing
 
 #### 5. `security-scan.sh` runs under Git Bash on Windows
 
-Claude Code ships Git Bash, so the precheck script runs on both ends with the same command.
+The precheck script is bash, so on Windows it needs Git Bash, which comes with Git for Windows. Claude Code does not ship it (without Git for Windows, Claude Code itself falls back to PowerShell for shell commands, but this script will not run). With Git for Windows installed, the script runs on both ends with the same command.
 
 #### 6. Prefer an HTTPS clone URL on a proxied Windows machine
 
@@ -297,7 +297,7 @@ Windows 文件系统大小写不敏感，Linux 敏感。两个只差大小写的
 
 #### 5. `security-scan.sh` 在 Windows 上走 Git Bash
 
-Claude Code 自带 Git Bash，预检脚本两端都能跑，命令一样。
+预检脚本是 bash，所以在 Windows 上需要 Git Bash，它随 Git for Windows 提供，Claude Code 并不自带（没装 Git for Windows 时，Claude Code 自己会退回用 PowerShell 执行命令，但这个脚本跑不起来）。装了 Git for Windows 之后，两端用同一条命令即可。
 
 #### 6. 走代理的 Windows 机器优先用 HTTPS clone
 
