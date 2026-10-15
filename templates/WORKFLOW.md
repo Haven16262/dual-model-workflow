@@ -241,12 +241,14 @@
 | `scripts/k10-watch.py`（K9 值班 + 日历，cron） | 已实现；单元测试通过；模拟 cron 环境下 Opus 质疑者 + 门铃端到端通过（小项目 60 秒，输出约 1 万 token，这一版之前的实现）。失败重试、崩溃落盘在这之后才加，只有单元测试。**真 crontab 未测** |
 
 - **数据文件**（由会话写入，值班只读）：`.workflow/scores.tsv` 表头 `date<TAB>pkg<TAB>score`，按上传顺序，每个读出官方分的包一行；`.workflow/leaderboard.tsv` 表头 `rank<TAB>team<TAB>score<TAB>submissions<TAB>best_date`，K6 每次抓榜后整表覆盖。写错了（列名不对、非数字）值班会报错退出，并在日志里写明原因。
-- **部署：** 把 `scripts/` 下的 `dual-model-mode.sh`、`k10-*.py` 拷到 `~/.claude/scripts/`（钩子命令在脚本不存在时放行，并用 systemMessage 提示「未安装」，不会拦住所有会话）；项目 `.claude/settings.json` 挂上两个钩子（`cc-init` 会拷模板）；由用户在 crontab 里加一行 `*/30 * * * * flock -n /tmp/k10-<项目>.lock ~/.claude/scripts/k10-watch.py <项目目录> >> <日志> 2>&1`。
+- **部署：** 把 `scripts/` 下的 `dual-model-mode.sh`、`k10-*.py` 拷到 `~/.claude/scripts/`（钩子命令在脚本不存在时放行，不会拦住所有会话；项目是比赛模式——`context.md` 里有 `workflow-mode: competition`——时才用 systemMessage 提示「未安装」，其他模式静默，因为那时没有启用 K10）；项目 `.claude/settings.json` 挂上两个钩子（`cc-init` 会拷模板）；由用户在 crontab 里加一行 `*/30 * * * * flock -n /tmp/k10-<项目>.lock ~/.claude/scripts/k10-watch.py <项目目录> >> <日志> 2>&1`。
 - **输入隔离的实际强度：** 质疑者在项目目录里启动，只给只读工具（Read / Grep / Glob / WebSearch / WebFetch）。提出者、复现者在隔离目录启动，目录里只放规则或规格的副本。**隔离 = 不告诉它路径 + 工具白名单；用绝对路径越界读取，没有东西拦。** 本机 CC 沙箱是关的，没有文件系统层的兜底。
 
 ---
 
 ## 命令被守卫拦下时
+
+> 本节只在你安装了权限守卫时适用（见 README「工作者权限守卫」，默认不装）。没装守卫就忽略本节；工作者仍然不该自行 `git push`，但此时没有任何东西替它拦着。
 
 工作者会话装了一个权限守卫。它拦的是**会弹窗、但没人能批准**的命令：工作者所在的会话连不上 Remote Control（provider 指向本地网关，平台层禁止），而权限弹窗永不超时——一旦弹出来就是无限期挂死。拦在弹窗打开之前，才有「跳过去做别的」这个选项。
 

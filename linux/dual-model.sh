@@ -232,7 +232,7 @@ cc-init() {
     # overwrite a project's own settings.json; merge by hand if one exists.
     local _k10s="${DUAL_MODEL_SCRIPTS:-$HOME/.claude/scripts}"
     if [ ! -f "$_k10s/k10-stop-gate.py" ] || [ ! -f "$_k10s/k10-subagent-report.py" ]; then
-      echo "  NOTE: K10 hook scripts not found in $_k10s; the hooks will only print 'not installed'. Install scripts/ first (README)."
+      echo "  NOTE: K10 hook scripts (optional third-party review) not found in $_k10s. Only competition-mode projects need them; install scripts/ before using that mode (README)."
     fi
     if [ -f .claude/settings.json ]; then
       echo "  NOTE: .claude/settings.json exists; merge the K10 hooks from $DUAL_MODEL_TEMPLATES/.claude/settings.json by hand."

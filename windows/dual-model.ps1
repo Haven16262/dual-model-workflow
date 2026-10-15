@@ -280,7 +280,7 @@ function cc-init {
     # 注意：钩子命令依次试 python3、python，只用真能跑起来的那个（Git Bash 里的 python3 可能是商店占位符）；
     # $HOME 在 Git Bash 下展开为 /c/Users/<名>（2026-09-29 MSI 实测）。CC 里端到端待测。
     if (-not (Test-Path "$env:USERPROFILE\.claude\scripts\k10-stop-gate.py")) {
-      Write-Host "  注意：~\.claude\scripts\ 下没有 K10 钩子脚本；钩子只会提示「未安装」。先按 README 安装 scripts\。" -ForegroundColor Yellow
+      Write-Host "  注意：~\.claude\scripts\ 下没有 K10 钩子脚本（可选的第三者审查）；只有比赛模式的项目才需要，用那个模式前先按 README 安装 scripts\。" -ForegroundColor Yellow
     }
     if (Test-Path ".claude\settings.json") {
       Write-Host "  注意：.claude\settings.json 已存在，请手动合并 $tpl\.claude\settings.json 里的 K10 钩子。" -ForegroundColor Yellow

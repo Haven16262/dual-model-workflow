@@ -188,13 +188,24 @@ run_watch "$P" 2026-10-01 j4
 run_watch "$P" 2026-10-01 j5
 run_watch "$P" 2026-10-01 j6
 expect C_badtemplate '[ $RC = 0 ] && grep -q "触发 0 个，待办 0 个" <<<"$OUT" && [ -z "$(find "$T/log-j4" "$T/log-j5" "$T/log-j6" -type f)" ]'
-# 6j A: the settings.json hook command itself (missing script -> exit 0 + systemMessage; installed -> runs)
+# 6j A: the settings.json hook command itself (missing script -> exit 0, systemMessage only in competition mode; installed -> runs)
 TPL=$(cd "$S/../templates" && pwd)/.claude/settings.json
 for ev in Stop SubagentStop; do
   c=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1], encoding='utf-8'))['hooks'][sys.argv[2]][0]['hooks'][0]['command'])" "$TPL" "$ev")
   H=$T/home-$ev; mkdir -p "$H"
-  OUT=$(echo '{}' | HOME="$H" sh -c "$c" 2>&1); RC=$?
-  expect A_missing_$ev '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "未安装" <<<"$OUT"'
+  # script missing: loud only for a competition-mode project (K10 actually in play); silent otherwise
+  PC=$T/proj-comp-$ev; mkproj "$PC" competition
+  PW=$T/proj-crlf-$ev; mkdir -p "$PW"; printf '# ctx\r\nworkflow-mode: competition\r\n' > "$PW/context.md"
+  PN=$T/proj-plain-$ev; mkproj "$PN" project
+  PE=$T/proj-nomode-$ev; mkdir -p "$PE"
+  for q in "$PC" "$PW"; do
+    OUT=$(echo '{}' | HOME="$H" CLAUDE_PROJECT_DIR="$q" sh -c "$c" 2>&1); RC=$?
+    expect A_missing_competition_says_so_$(basename "$q") '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "未安装" <<<"$OUT"'
+  done
+  for q in "$PN" "$PE"; do
+    OUT=$(echo '{}' | HOME="$H" CLAUDE_PROJECT_DIR="$q" sh -c "$c" 2>&1); RC=$?
+    expect A_missing_silent_$(basename "$q") '[ $RC = 0 ] && [ -z "$OUT" ]'
+  done
   mkdir -p "$H/.claude/scripts"; cp "$S"/k10-*.py "$H/.claude/scripts/"
   OUT=$(echo '{"agent_type":"x"}' | HOME="$H" DUAL_MODEL_ROLE=worker sh -c "$c" 2>&1); RC=$?
   expect A_installed_$ev '[ $RC = 0 ] && ! grep -q "未安装" <<<"$OUT"'
