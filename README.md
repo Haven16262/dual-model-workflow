@@ -237,6 +237,8 @@ Organizing work *across* machines — using a shared git repository as the hando
 
 ### The Worker permission guard
 
+> **Off by default and entirely optional.** Nothing in this repository installs the guard, and the repository ships no permission rules (`allow` / `ask` / `deny`) of its own — the `ask` rules mentioned below are from the author's personal `settings.json` and are not included. Unless you install the guard, a Worker runs under whatever permission configuration you already have, and nothing stops it from running `git push`: the "Workers don't push" rule is then only text in `WORKFLOW.md`. Don't want the guard? Skip this section and delete `scripts/worker_guard.py`, `scripts/cc_allow_once.py`, `scripts/worker_guard_test.sh` and `skills/allow-once/`. Want it? The install steps below are all it takes. The `WORKFLOW.md` template has a section titled 命令被守卫拦下时 ("when the guard blocks a command") that assumes the guard is installed — ignore or delete it if you skip the guard.
+
 A Worker session cannot reach Remote Control: `cc-alt` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely. (Remote Control itself needs a Claude account; without one no session can use it, and an unanswered prompt hangs just the same.)
 
 The guard is a `PreToolUse` hook that denies those commands *before* the dialog opens, which is what makes "skip it and do something else" possible at all.
@@ -583,6 +585,8 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 **别指望它做无人值守自动循环。** 发给「已跳过权限确认」会话的跨会话消息会被扣住等人工批准(平台设计如此)。这套机制省的是打字和上下文切换,不省盯着——这跟本工作流「人是检查点」的前提是一致的。
 
 ### 工作者权限守卫
+
+> **默认不装,完全可选。** 本仓库不会自动安装守卫,也不自带任何权限规则(`allow` / `ask` / `deny`)——下文提到的 `ask` 规则来自作者个人的 `settings.json`,不在仓库里。不装守卫的话,工作者按你已有的权限配置运行,没有任何东西拦它执行 `git push`:「工作者不推送」这条规则此时只是 `WORKFLOW.md` 里的文字。不想要守卫?跳过本节,并删除 `scripts/worker_guard.py`、`scripts/cc_allow_once.py`、`scripts/worker_guard_test.sh` 和 `skills/allow-once/`。想要?照下面的安装步骤做就行。`WORKFLOW.md` 模板里有一节「命令被守卫拦下时」是以装了守卫为前提写的——不装守卫就忽略或删掉它。
 
 工作者会话**连不上 Remote Control**：`cc-alt` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。(Remote Control 本身需要 Claude 账号;没有账号时任何会话都用不了它,弹窗没人答照样挂死。)
 
