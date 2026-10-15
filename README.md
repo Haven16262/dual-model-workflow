@@ -4,6 +4,8 @@ A lightweight protocol for pairing two AI coding models — one as **Overseer**,
 
 **[English](#english) · [中文](#中文)**
 
+> Runs on the [Claude Code](https://claude.com/claude-code) CLI — install that first; this repo does not install it. A Claude account is **optional**: either role can run on any Anthropic-compatible model endpoint. See [Prerequisites](#prerequisites) · 运行在 Claude Code 命令行之上,需先自行安装,本仓库不负责安装。Claude 账号**不是必须的**:两个角色都可以接任意 Anthropic 兼容的模型端点,见[前置条件](#前置条件)。
+
 ---
 
 ## English
@@ -19,16 +21,54 @@ This workflow splits the work across **two models with separate roles**, and man
 
 ### Two roles
 
-- **Overseer (`cc`, e.g. Claude)** — direction, decisions, review. Does not read large numbers of files, does not iterate on details. Steps in only at key moments: set architecture at kickoff, decide when the Worker hits a fork, review at phase boundaries.
-- **Worker (`cc-alt`, e.g. DeepSeek)** — execution, iteration, detail implementation. Reads files, looks things up, writes code, fixes bugs. The role that actually does the work.
+- **Overseer (`cc`, any model — e.g. Claude)** — direction, decisions, review. Does not read large numbers of files, does not iterate on details. Steps in only at key moments: set architecture at kickoff, decide when the Worker hits a fork, review at phase boundaries.
+- **Worker (`cc-alt`, any model — e.g. DeepSeek)** — execution, iteration, detail implementation. Reads files, looks things up, writes code, fixes bugs. The role that actually does the work.
 
-The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-alt` starts the Worker.
+The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-alt` starts the Worker. (`cc` and `cc-alt` are shell functions defined by this repo's helper file — see the Quick start — not commands that ship with Claude Code.)
 
 ### Three files
 
 - **`WORKFLOW.md`** — the rules: each role's responsibilities, switch trigger conditions, and the `context.md` write formats. Both models read this on startup so behavior stays consistent.
 - **`CLAUDE.md`** — project-level startup instructions: every session must (1) read `WORKFLOW.md`, (2) read `context.md` (top status block first, then latest history), (3) restate "I am [role], current task is: [summary]" and begin.
 - **`context.md`** — the core. A top `## Current State` block (overwritten on each write — the latest task list) plus an append-only history log (timestamped records of every decision and execution step).
+
+### Prerequisites
+
+This repository is a set of templates and shell helpers that sit **on top of** the [Claude Code](https://claude.com/claude-code) command-line tool. Claude Code is only the runtime both roles run in; the models behind the roles are your choice. This repo does not install Claude Code and does not replace it. Before the Quick start:
+
+1. **Claude Code installed.** Follow the official instructions at <https://claude.com/claude-code>. To check: `claude --version` prints a version. If `claude` is missing, `cc` and `cc-alt` fail with `command not found` — and that is the *last* thing to fail: sourcing the helper and running `cc-init` both succeed without Claude Code, so nothing earlier warns you.
+2. **A model for each role, and a way to authenticate to it.** A Claude account is optional. Each role is just a `claude` process pointed at some model endpoint:
+   - `cc` (Overseer) uses whatever your default `claude` configuration points at — a Claude login, or `ANTHROPIC_*` environment variables / `settings.json`, see "Using models other than Claude" below.
+   - `cc-alt` (Worker) ships with one example, DeepSeek's Anthropic-compatible endpoint, so the Quick start asks for a `DEEPSEEK_API_KEY`. For another endpoint, edit the environment variables in `cc-alt`.
+   - Both roles may be non-Claude models. Not tested here: a machine that has never signed in to Claude at all — the author's machines all have a Claude login, so the first-run screen on a clean machine may differ.
+3. **Shell and tools.** Linux / macOS: bash and git. Windows: PowerShell plus Git for Windows (Git Bash). Python 3 is needed only for the optional pieces below.
+4. **Claude Code version.** Developed and tested on Claude Code 2.1.x (latest check: 2.1.300, on Linux). Only the cross-session notification feature has a verified version floor (see "Let the sessions notify each other"); no other floor has been checked, so if something behaves differently, upgrade Claude Code first.
+
+**What is core, what is optional.** The Quick start sets up the core: the templates, the helper (`cc` / `cc-alt` / `cc-init`), and the security precheck. These are optional extras — skip them on a first run:
+
+- **Worker permission guard** (Python 3) — see "The Worker permission guard".
+- **K10 third-party review** (`k10-*.py`, step 6 of the Linux Quick start) — an independent reviewer session for competition-mode projects. The watcher needs cron + flock; it is not set up for Windows.
+- **Cross-session notification** — same-machine works with any model; across machines it needs a Claude account on both ends (details below and in [`CROSS-MACHINE.md`](CROSS-MACHINE.md)).
+
+#### Using models other than Claude
+
+Set the endpoint for the Overseer before running `cc` (or put the same keys under `env` in the `settings.json` that `cc` reads):
+
+```bash
+export ANTHROPIC_BASE_URL="https://<your-endpoint>/anthropic"
+export ANTHROPIC_AUTH_TOKEN="<your-token>"     # never empty, never unset — see the warning below
+export ANTHROPIC_MODEL="<your-model-name>"
+# The critic subagent asks for `haiku` and competition mode asks for `opus`. On a non-Claude
+# endpoint those aliases must resolve to a model your endpoint actually serves — `cc-alt` does
+# this for every tier, and so should you (competition mode also honours DUAL_MODEL_MODEL):
+export ANTHROPIC_DEFAULT_OPUS_MODEL="<your-model-name>"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="<your-model-name>"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="<your-model-name>"
+```
+
+> **Warning — never leave the token empty or unset when `ANTHROPIC_BASE_URL` points at a non-Anthropic host.** Observed on Claude Code 2.1.272 (2026-09-15): with a custom base URL and no token, Claude Code did not error out; it fell back to the machine's Claude login and sent that account's OAuth token to the custom endpoint. `ANTHROPIC_AUTH_TOKEN=$VAR` with an empty `$VAR` takes the same path, and so does assigning an empty string to `$env:X` in PowerShell (which deletes the variable). `cc-alt` checks that the key is non-empty and aborts; any launcher you write must do the same. Without a Claude login on the machine there is nothing to leak, but keep the check anyway.
+
+Messaging between sessions does not depend on the model behind them: same-machine `SendMessage` works between two sessions that both run on third-party endpoints (observed with DeepSeek-backed sessions on the author's VPS), and Claude Code's docs, as checked on 2026-09-18, list same-machine messaging as available on every provider from 2.1.248. Run `/list-agents` to confirm it is on in your session. Setting any of `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DO_NOT_TRACK` or `DISABLE_GROWTHBOOK` silently turns the feature off (per the author's notes; `/list-agents` is the check). **Across machines** it is different: that route needs a Claude account on both ends — see [Let the sessions notify each other](#let-the-sessions-notify-each-other) and [`CROSS-MACHINE.md`](CROSS-MACHINE.md).
 
 ### Repository layout
 
@@ -37,7 +77,7 @@ templates/   # markdown templates — platform-neutral, shared by both platforms
 scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh (workflow-mode rules, called by the launchers)
-#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (third-party reviews, K10)
+#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (optional: third-party reviews, K10)
 #              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)  — Linux only; not ported to Windows
 docs/design/ # design records (why the templates say what they say)
 skills/      # allow-once — install into ~/.claude/skills/
@@ -52,6 +92,10 @@ One real behavioral difference between the two ports: **model switching**. The L
 ### Quick start — Linux / macOS (bash)
 
 ```bash
+# 0. Prerequisites (see above) — stop here if this prints the "not found" line
+command -v git >/dev/null || echo "git not found"
+command -v claude >/dev/null && claude --version || echo "claude not found — install Claude Code first (see Prerequisites)"
+
 # 1. Clone
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
@@ -62,8 +106,9 @@ cp -r templates/. ~/.dual-model/templates/
 #   (the trailing dot copies hidden entries like .claude/ too)
 #   (or: export DUAL_MODEL_TEMPLATES=/abs/path/to/dual-model-workflow/templates)
 
-# 2b. Install the scripts: security precheck (Overseer, before every review),
-#     workflow-mode rules (read by cc / cc-alt), K10 third-party hooks + watcher
+# 2b. Install the scripts: security precheck (Overseer, before every review) and
+#     workflow-mode rules (read by cc / cc-alt) are core; the k10-*.py files are the
+#     optional third-party-review hooks + watcher — copying them is harmless
 mkdir -p ~/.claude/scripts
 cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
 
@@ -78,7 +123,7 @@ source ~/.bashrc
 cd /path/to/your/project
 cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
 
-# 6. (competition-mode projects) schedule the K9 watcher — see WORKFLOW.md, section K10
+# 6. (optional — competition-mode projects only) schedule the K9 watcher — see WORKFLOW.md, section K10
 #    */30 * * * * flock -n /tmp/k10-<proj>.lock ~/.claude/scripts/k10-watch.py /path/to/project >> /path/to/k10.log 2>&1
 ```
 
@@ -87,6 +132,10 @@ cc-init        # copies WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 ### Quick start — Windows (PowerShell)
 
 ```powershell
+# 0. Prerequisites (see above)
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "git not found" }
+if (Get-Command claude -ErrorAction SilentlyContinue) { claude --version } else { Write-Host "claude not found - install Claude Code first (see Prerequisites)" }
+
 # 1. Clone
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
@@ -102,7 +151,7 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 # 2b. Install the security precheck script (runs under Git Bash, which Claude Code ships with)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
-#     K10 hooks (Python): the hook command tries python3 then python and only uses one that
+#     K10 hooks (optional, Python): the hook command tries python3 then python and only uses one that
 #     actually runs (Git Bash may find a Store stub named python3); scripts force UTF-8 I/O.
 #     2026-09-29: byte-level checked on MSI; end-to-end in CC still pending. k10-watch.py needs
 #     cron + flock and is NOT set up for Windows.
@@ -178,7 +227,7 @@ When a send fails (peer terminal not running, name doesn't match, version or pla
 
 **Optional: let the platform watch for you.** When the Overseer hands work off, it can pass `notify_when_idle` (≥ 2.1.236, same machine only) to be told once when the Worker next goes idle. The upside is that it doesn't depend on the Worker remembering to send anything; the cost is that it only says "idle", not "handoff ready" — you still read `context.md` to see whether a new handoff block exists.
 
-**Platform status:** cross-session messaging started out macOS- and Linux-only; native Windows caught up in 2.1.234, so all three are covered. Same-machine delivery goes over a local socket (a named pipe on Windows) and never touches Anthropic servers; **across machines** (say a VPS and your laptop) both ends must be connected to Remote Control and the message is relayed through Anthropic servers. Note that a session inside WSL 2 and a native Windows session on the same computer **can't see each other** — different home directories, different socket types.
+**Platform status:** cross-session messaging started out macOS- and Linux-only; native Windows caught up in 2.1.234, so all three are covered. Same-machine delivery goes over a local socket (a named pipe on Windows) and never touches Anthropic servers; **across machines** (say a VPS and your laptop) both ends must be signed in with a Claude account and connected to Remote Control, and the message is relayed through Anthropic servers. Without a Claude account that route is closed — keep the shared-repository part of the handoff and carry the one-line pointer by any other channel (chat, email, a webhook, another open-source messenger, something you build); see [`CROSS-MACHINE.md`](CROSS-MACHINE.md). Note that a session inside WSL 2 and a native Windows session on the same computer **can't see each other** — different home directories, different socket types.
 
 Organizing work *across* machines — using a shared git repository as the handoff medium, how addressing differs, and the Linux ↔ Windows line-ending/path/timezone traps — is covered separately in [`CROSS-MACHINE.md`](CROSS-MACHINE.md). You don't need it for same-machine use.
 
@@ -188,7 +237,7 @@ Organizing work *across* machines — using a shared git repository as the hando
 
 ### The Worker permission guard
 
-A Worker session cannot reach Remote Control: `cc-alt` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely.
+A Worker session cannot reach Remote Control: `cc-alt` points `ANTHROPIC_BASE_URL` at a local gateway, and Claude Code refuses Remote Control whenever that variable names a host other than `api.anthropic.com`. Permission prompts, meanwhile, never time out. So a Worker that trips a prompt while you are away is not waiting — it is hung, indefinitely. (Remote Control itself needs a Claude account; without one no session can use it, and an unanswered prompt hangs just the same.)
 
 The guard is a `PreToolUse` hook that denies those commands *before* the dialog opens, which is what makes "skip it and do something else" possible at all.
 
@@ -212,7 +261,7 @@ mkdir -p ~/.claude/skills/allow-once && cp skills/allow-once/SKILL.md ~/.claude/
 echo vps > ~/.claude/machine-tag        # or: msi, n1, ... — one short tag per machine
 ```
 
-Then add the hook to the **Worker-only** settings file (`~/.claude/settings.deepseek.json`), never to `settings.json` — the Overseer must keep its normal prompts, since it is the session that can reach your phone:
+Then add the hook to the **Worker-only** settings file (`~/.claude/settings.deepseek.json`), never to `settings.json` — the Overseer must keep its normal prompts, since, with a Claude account, it is the session that can reach your phone through Remote Control:
 
 ```json
 { "matcher": "Bash",
@@ -320,16 +369,53 @@ MIT — see [LICENSE](LICENSE).
 
 ### 两个角色
 
-- **全局者(`cc`,如 Claude)** —— 负责方向、决策、审查。不读大量文件,不做迭代修改,只在关键节点介入:项目启动定架构,工作者遇到分歧给决策,阶段完成做 review。
-- **工作者(`cc-alt`,如 DeepSeek)** —— 负责执行、迭代、细节实现。读文件、查资料、写代码、改 bug,是实际干活的角色。
+- **全局者(`cc`,任意模型,如 Claude)** —— 负责方向、决策、审查。不读大量文件,不做迭代修改,只在关键节点介入:项目启动定架构,工作者遇到分歧给决策,阶段完成做 review。
+- **工作者(`cc-alt`,任意模型,如 DeepSeek)** —— 负责执行、迭代、细节实现。读文件、查资料、写代码、改 bug,是实际干活的角色。
 
-两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-alt` 启动工作者。
+两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-alt` 启动工作者。(`cc` 和 `cc-alt` 是本仓库 helper 文件定义的 shell 函数,见快速开始,不是 Claude Code 自带的命令。)
 
 ### 三个文件
 
 - **`WORKFLOW.md`** —— 游戏规则:两个角色各自的职责、触发切换的条件、`context.md` 的写入格式。每次 session 启动两个模型都先读它,确保行为一致。
 - **`CLAUDE.md`** —— 项目级启动指令:每次 session 必须 (1) 读 `WORKFLOW.md`,(2) 读 `context.md`(先看顶部当前状态,再看最新历史),(3) 复述「我是[角色],当前任务是:[摘要]」再开始。
 - **`context.md`** —— 整个工作流的核心。顶部 `## 当前状态`(每次写入覆盖,放最新任务清单)+ 仅追加的历史记录(每次写入留一条带时间戳的记录)。
+
+### 前置条件
+
+本仓库是一组模板和 shell helper,**建立在** [Claude Code](https://claude.com/claude-code) 命令行工具之上。Claude Code 只是两个角色共同的运行环境,角色背后用什么模型由你决定。本仓库不负责安装它,也不替代它。开始快速开始之前:
+
+1. **已安装 Claude Code。** 按官方说明安装:<https://claude.com/claude-code>。自检:`claude --version` 能打印版本号。如果找不到 `claude`,`cc` 和 `cc-alt` 会报 `command not found`——而这是**最后**才失败的一步:source helper 和运行 `cc-init` 在没装 Claude Code 时都能成功,前面没有任何提示。
+2. **每个角色一个模型,以及登录它的方式。** Claude 账号不是必须的。每个角色本质上就是一个指向某个模型端点的 `claude` 进程:
+   - `cc`(全局者)用你默认的 `claude` 配置指向的模型——Claude 登录,或 `ANTHROPIC_*` 环境变量 / `settings.json`,见下面「使用 Claude 以外的模型」。
+   - `cc-alt`(工作者)自带一个示例:DeepSeek 的 Anthropic 兼容端点,所以快速开始需要 `DEEPSEEK_API_KEY`。换别的端点就改 `cc-alt` 里的环境变量。
+   - 两个角色都可以是非 Claude 模型。这里**没有测过**:一台从未登录过 Claude 的机器——作者的机器都有 Claude 登录,干净机器上的首次启动界面可能不同。
+3. **Shell 与工具。** Linux / macOS:bash 和 git。Windows:PowerShell 加 Git for Windows(Git Bash)。Python 3 只有下面的可选部分才需要。
+4. **Claude Code 版本。** 在 Claude Code 2.1.x 上开发和测试(最近一次核对:Linux 上 2.1.300)。只有跨会话通知有核实过的版本下限(见「让会话自己通知对方」);其余没有核实过下限,行为不对时先升级 Claude Code。
+
+**核心与可选。** 快速开始装的是核心:模板、helper(`cc` / `cc-alt` / `cc-init`)和安全预检。下面这些是可选项,第一次跑可以全部跳过:
+
+- **工作者权限守卫**(需要 Python 3)——见「工作者权限守卫」。
+- **K10 第三者审查**(`k10-*.py`,Linux 快速开始第 6 步)——给比赛模式项目用的独立审查会话。值班脚本依赖 cron + flock,Windows 上没有配。
+- **跨会话通知**——同机器上任意模型都能用;跨机器需要两端都有 Claude 账号(详见下文和 [`CROSS-MACHINE.md`](CROSS-MACHINE.md))。
+
+#### 使用 Claude 以外的模型
+
+在运行 `cc` 之前给全局者设好端点(或把同样的键放进 `cc` 读取的 `settings.json` 的 `env` 里):
+
+```bash
+export ANTHROPIC_BASE_URL="https://<你的端点>/anthropic"
+export ANTHROPIC_AUTH_TOKEN="<你的 token>"     # 绝不能为空、绝不能不设——见下面的警告
+export ANTHROPIC_MODEL="<你的模型名>"
+# critic 子代理要的是 `haiku`,比赛模式要的是 `opus`。接非 Claude 端点时这些别名必须解析到你的端点真正提供的模型——
+# `cc-alt` 对每一档都做了这件事,你也该做(比赛模式另外认 DUAL_MODEL_MODEL):
+export ANTHROPIC_DEFAULT_OPUS_MODEL="<你的模型名>"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="<你的模型名>"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="<你的模型名>"
+```
+
+> **警告——`ANTHROPIC_BASE_URL` 指向非 Anthropic 主机时,token 绝不能留空或不设。** 2026-09-15 在 Claude Code 2.1.272 上实测:自定义 base URL 且没有 token 时,Claude Code 不报错,而是回落到本机的 Claude 登录,把该账号的 OAuth token 发给了这个自定义端点。`ANTHROPIC_AUTH_TOKEN=$VAR` 而 `$VAR` 为空走的是同一条路径;PowerShell 里给 `$env:X` 赋空串(等于删变量)也一样。`cc-alt` 会检查密钥非空并中止;你自己写的任何启动器都必须做同样的检查。机器上没有 Claude 登录就没有东西可泄露,但检查仍然建议保留。
+
+会话之间的消息不取决于背后的模型:同机器上的 `SendMessage` 在两个都跑第三方端点的会话之间可用(作者的 VPS 上用 DeepSeek 会话实测过),Claude Code 官方文档(2026-09-18 核对)也把同机消息列为在所有 provider 上可用(≥ 2.1.248)。用 `/list-agents` 确认你的会话里有这个功能。设置 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`、`DISABLE_TELEMETRY`、`DO_NOT_TRACK`、`DISABLE_GROWTHBOOK` 中任意一个,会让这个功能静默关闭(来自作者笔记,以 `/list-agents` 为准)。**跨机器**则不同:那条路需要两端都有 Claude 账号——见[让会话自己通知对方](#让会话自己通知对方)和 [`CROSS-MACHINE.md`](CROSS-MACHINE.md)。
 
 ### 仓库布局
 
@@ -338,7 +424,7 @@ templates/   # markdown 模板 —— 平台无关,两端共用
 scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh —— 工作模式规则,启动器调用它
-#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 第三者审查(K10)
+#              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 可选:第三者审查(K10)
 #              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh(测试套件只支持 Linux,未移植到 Windows)
 docs/design/ # 设计记录(模板为什么这么写)
 skills/      # allow-once —— 装进 ~/.claude/skills/
@@ -353,6 +439,10 @@ windows/     # PowerShell helper(同名命令)—— dot-source 进 $PROFILE
 ### 快速开始 —— Linux / macOS(bash)
 
 ```bash
+# 0. 前置条件(见上文)——这里打印「not found」就先停下
+command -v git >/dev/null || echo "git not found"
+command -v claude >/dev/null && claude --version || echo "claude not found —— 先安装 Claude Code(见前置条件)"
+
 # 1. 克隆
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
@@ -363,7 +453,8 @@ cp -r templates/. ~/.dual-model/templates/
 #   (尾部的 . 同时拷贝 .claude/ 等隐藏目录)
 #   (或:export DUAL_MODEL_TEMPLATES=/绝对路径/dual-model-workflow/templates)
 
-# 2b. 安装脚本:安全预检(全局者每次审查前运行)、工作模式规则(cc / cc-alt 读取)、K10 第三者钩子与值班
+# 2b. 安装脚本:安全预检(全局者每次审查前运行)和工作模式规则(cc / cc-alt 读取)是核心;
+#     k10-*.py 是可选的第三者审查钩子与值班,拷贝进去无副作用
 mkdir -p ~/.claude/scripts
 cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
 
@@ -378,7 +469,7 @@ source ~/.bashrc
 cd /你的/项目
 cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands,agents,settings.json} + .workflow/
 
-# 6. (比赛模式的项目)排上 K9 值班 —— 见 WORKFLOW.md「K10 第三者」
+# 6. (可选,仅比赛模式的项目)排上 K9 值班 —— 见 WORKFLOW.md「K10 第三者」
 #    */30 * * * * flock -n /tmp/k10-<项目>.lock ~/.claude/scripts/k10-watch.py /项目/路径 >> /日志/路径 2>&1
 ```
 
@@ -387,6 +478,10 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 ### 快速开始 —— Windows(PowerShell)
 
 ```powershell
+# 0. 前置条件(见上文)
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "git not found" }
+if (Get-Command claude -ErrorAction SilentlyContinue) { claude --version } else { Write-Host "claude not found - 先安装 Claude Code(见前置条件)" }
+
 # 1. 克隆
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
@@ -402,7 +497,7 @@ Copy-Item -Recurse -Force templates\.workflow "$env:USERPROFILE\.dual-model\temp
 # 2b. 安装安全预检脚本(在 Git Bash 下运行,Claude Code 自带)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\scripts" | Out-Null
 Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
-#     K10 钩子(Python):钩子命令依次试 python3、python,只用真能跑起来的那个(Git Bash 里的 python3
+#     K10 钩子(可选,Python):钩子命令依次试 python3、python,只用真能跑起来的那个(Git Bash 里的 python3
 #     可能是商店占位符);脚本强制 UTF-8 输入输出。2026-09-29 MSI 已测到字节层,CC 里端到端待测。
 #     值班 k10-watch.py 依赖 cron + flock,Windows 上没有配。
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
@@ -479,7 +574,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 **平台状态:** 跨会话消息最初只有 macOS 和 Linux,Windows 从 2.1.234 起补齐,现在三端都可用。`windows/dual-model.ps1` 已跟进会话命名,本节对 Windows 同样生效。模板不为平台分叉,两端行为一致——只有非 ASCII 目录名的哈希兜底实现不同(Linux 用 `cksum`,PowerShell 没有,改用 SHA256 前 8 位十六进制),两边都只保证「同路径永远同结果」,不保证跨平台算出同一个值。
 
-同机器上两个终端直接走本地 socket(Windows 上是命名管道),不经过 Anthropic 服务器;**跨机器**(比如 VPS 和本地电脑)才需要两端都连 Remote Control,消息经服务器中转。另外 WSL 2 里的会话和同一台电脑上的原生 Windows 会话**互相看不见**——注册在不同的 home 目录,socket 类型也不同。
+同机器上两个终端直接走本地 socket(Windows 上是命名管道),不经过 Anthropic 服务器;**跨机器**(比如 VPS 和本地电脑)才需要两端都登录 Claude 账号并连上 Remote Control,消息经 Anthropic 服务器中转。没有 Claude 账号这条路就走不通——交接里「共享仓库」那一半照旧,只是那条一句话的指针消息要靠别的渠道送(聊天、邮件、webhook、别的开源消息工具,或自己搭的东西),见 [`CROSS-MACHINE.md`](CROSS-MACHINE.md)。另外 WSL 2 里的会话和同一台电脑上的原生 Windows 会话**互相看不见**——注册在不同的 home 目录,socket 类型也不同。
 
 跨机器该怎么组织工作流——用共享 git 仓库当交接介质、寻址方式的差异、Linux ↔ Windows 的换行符/路径/时区坑——单独写在 [`CROSS-MACHINE.md`](CROSS-MACHINE.md)。同机使用不需要读。
 
@@ -489,7 +584,7 @@ cc-init        # 复制 WORKFLOW.md + CLAUDE.md + context.md + .claude/{commands
 
 ### 工作者权限守卫
 
-工作者会话**连不上 Remote Control**：`cc-alt` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。
+工作者会话**连不上 Remote Control**：`cc-alt` 把 `ANTHROPIC_BASE_URL` 指向本地网关，而 Claude Code 在这个变量指向 `api.anthropic.com` 以外的主机时一律拒绝 Remote Control。同时权限弹窗**永不超时**。两条叠起来：你不在工位时工作者撞上弹窗，不是"等一会儿"，是无限期挂死。(Remote Control 本身需要 Claude 账号;没有账号时任何会话都用不了它,弹窗没人答照样挂死。)
 
 守卫是个 `PreToolUse` 钩子，在弹窗打开**之前**把这些命令拒掉——「跳过去做别的」这个选项只有这样才存在。
 
@@ -513,7 +608,7 @@ mkdir -p ~/.claude/skills/allow-once && cp skills/allow-once/SKILL.md ~/.claude/
 echo vps > ~/.claude/machine-tag        # 或 msi / n1 …… 每台机器一个短标识
 ```
 
-然后把钩子加进**只有工作者加载**的那个设置文件（`~/.claude/settings.deepseek.json`），**绝不要加进 `settings.json`**——全局者必须保留它的正常弹窗，因为它才是能推到你手机的那个会话：
+然后把钩子加进**只有工作者加载**的那个设置文件（`~/.claude/settings.deepseek.json`），**绝不要加进 `settings.json`**——全局者必须保留它的正常弹窗，因为(有 Claude 账号时)它才是能经 Remote Control 推到你手机的那个会话：
 
 ```json
 { "matcher": "Bash",

@@ -10,6 +10,15 @@ The dual-model workflow in this repository (Overseer + Worker) is a **same-machi
 
 Day-to-day same-machine use doesn't need it. The line in `WORKFLOW.md` that says "this section assumes both terminals are on the same machine" points here.
 
+### Two separable parts — and which one needs a Claude account
+
+Cross-machine collaboration here is two things that can be separated:
+
+1. **Where the handoff lives.** A shared git repository is the "disk"; the handoff is written to `context.md`, pushed, and pulled. This part works with any model, any account and any messaging tool. It covers the iron rule, repository-relative paths, UTC offsets, line endings and the other platform notes below.
+2. **How the pointer message travels.** This document's route is Claude Code's `SendMessage` over **Remote Control**, which relays through Anthropic's servers and needs **both ends signed in with a Claude account**. An API key or a third-party model endpoint cannot use it.
+
+**No Claude account?** Keep part 1 unchanged and swap part 2 for any channel you have: a chat or IM message, email, a webhook, an open-source messenger, something you build yourself. The channel only has to carry a short pointer ("pushed; handoff block is the `[timestamp]` entry in `context.md`; pull, then pick up") — never the content. Sections below that apply **only to the Remote Control route** say so at their top: *Requirements*, *Addressing*, *What doesn't work across machines* and *Content boundaries*. Same-machine messaging needs none of this and works between any two sessions, whatever model they run on (see the README).
+
 ### First decide whether you actually need a cross-machine handoff
 
 Usually you don't. Work through these in order:
@@ -22,6 +31,8 @@ Usually you don't. Work through these in order:
 The normal cross-machine shape is **two Overseers talking to each other**, each with its own Worker at home. What crosses the wire is direction-alignment, not task assignment.
 
 ### Requirements
+
+*Applies only to the Remote Control route (both ends need a Claude account). On another channel, replace these with that channel's own requirements.*
 
 - **Both ends connected to Remote Control.** Miss one and the peer's row doesn't appear in `ListAgents` at all — that's not "sent but undelivered", it's not addressable.
 - Versions: macOS / Linux / WSL 2 ≥ 2.1.224, native Windows ≥ 2.1.234.
@@ -37,7 +48,7 @@ So a cross-machine handoff is three steps, not one:
 
 1. Write `context.md` in the usual format
 2. **`git push`**
-3. Send a message that is a **pointer**:
+3. Send a message that is a **pointer** (over Remote Control, or whatever channel you use):
 
    > Pushed to `origin/main`. The handoff block is the `[2026-08-25 14:30 +08:00]` entry in `context.md` — pull, then pick up via `/as-overseer`.
 
@@ -60,6 +71,8 @@ On tokens: **the message isn't the expensive part — rebuilding context on the 
 Conversely, **if you find your messages getting longer and starting to carry content, the channel isn't too small — the process has drifted.** Content belongs in the file. The platform refuses oversized messages anyway.
 
 ### Addressing: the four-segment session name doesn't apply
+
+*Applies only to the Remote Control route.*
 
 Same-machine, you find the peer by the `<project-dir>-<role>-<topic>` prefix. **Across machines that scheme is not in play:**
 
@@ -122,11 +135,15 @@ If one end keeps a mirror of the shared repo (a working copy that is synced by h
 
 ### What doesn't work across machines
 
+*Applies only to the Remote Control route.*
+
 - **`notify_when_idle`** — the platform limits it to "your sessions on this machine". Subscribing to a peer's idle notice across machines isn't available; don't build it into a procedure.
 
 ### Content boundaries
 
-Cross-machine messages are **relayed through Anthropic servers** (same-machine traffic goes over a local socket / named pipe and never leaves the machine). Two consequences:
+*Applies to the Remote Control route. On another channel the same principle holds — keys and credentials never go in a message — but who relays your messages is then that channel's business.*
+
+Cross-machine messages over Remote Control are **relayed through Anthropic servers** (same-machine traffic goes over a local socket / named pipe and never leaves the machine). Two consequences:
 
 1. **Keys, credentials, and anything that shouldn't leave never go in a message.** That material belongs in files and secret management, not in any channel.
 2. **Sessions wired to a third-party model endpoint** (a Worker running a non-Anthropic model, say) still relay through Anthropic when messaging across machines. I have no authoritative basis for where the compliance line sits here and won't guess.
@@ -149,6 +166,15 @@ It prompts even under `bypassPermissions`.
 
 日常同机使用不需要读本文。`WORKFLOW.md` 里那句「本节假设两个终端在同一台机器上」指向的就是这里。
 
+### 两个可以分开的部分——以及哪一部分需要 Claude 账号
+
+这里说的跨机器协作其实是两件可以拆开的事:
+
+1. **交接内容放在哪。** 共享 git 仓库就是那块「磁盘」:交接写进 `context.md`,push,对方 pull。这一部分对任何模型、任何账号、任何消息工具都成立。铁律、仓库相对路径、UTC 偏移、换行符,以及下面其它平台注意事项都属于这一部分。
+2. **那条指针消息怎么送。** 本文档走的是 Claude Code 的 `SendMessage` 经 **Remote Control**,消息经 Anthropic 服务器中转,要求**两端都登录 Claude 账号**。API key 或第三方模型端点用不了。
+
+**没有 Claude 账号?** 第 1 部分原样保留,把第 2 部分换成你手头有的任何渠道:聊天或 IM 消息、邮件、webhook、某个开源消息工具,或自己搭的东西。这个渠道只需要送一句很短的指针(「已推送;交接块见 `context.md` 的 `[时间戳]` 条目;pull 后接手」),**不送内容**。下面**只适用于 Remote Control 这条路**的章节,开头都有一行说明:「前提」「寻址」「跨机器用不了的东西」「内容边界」。同机器的消息完全不需要这些,任意两个会话之间都能用,不管背后跑什么模型(见 README)。
+
 ### 先做一个判断：你真的需要跨机器交接吗
 
 多数时候不需要。按这个顺序判断：
@@ -163,6 +189,8 @@ It prompts even under `bypassPermissions`.
 ---
 
 ### 前提
+
+*只适用于 Remote Control 这条路(两端都要有 Claude 账号)。换用别的渠道时,把这里换成那个渠道自己的前提。*
 
 - **两端都连着 Remote Control**。缺一边，对方整行不出现在 `ListAgents` 里——不是"发了没到"，是根本寻不到址。
 - 版本：macOS / Linux / WSL 2 ≥ 2.1.224，原生 Windows ≥ 2.1.234。
@@ -180,7 +208,7 @@ It prompts even under `bypassPermissions`.
 
 1. 按原格式写 `context.md`
 2. **`git push`**
-3. 发消息，消息体是**指针**：
+3. 发消息(走 Remote Control,或你用的任何渠道)，消息体是**指针**：
 
    > 已推送到 `origin/main`，交接块见 `context.md` 的 `[2026-08-25 14:30 +08:00]` 条目，pull 后按 `/as-overseer` 流程接手。
 
@@ -218,6 +246,8 @@ It prompts even under `bypassPermissions`.
 ---
 
 ### 寻址：跨机器不用四段式会话名
+
+*只适用于 Remote Control 这条路。*
 
 同机靠 `<项目目录名>-<角色>-<话题>` 前缀找人。**跨机器这套不适用**：
 
@@ -285,13 +315,17 @@ TUN 模式的代理客户端会接管 22 端口并给 SSH 一个 fake-IP，`git 
 
 ### 跨机器用不了的东西
 
+*只适用于 Remote Control 这条路。*
+
 - **`notify_when_idle`**——平台限定「only to your sessions on this machine」。跨机器订阅对方空闲通知这条路不通，别写进流程。
 
 ---
 
 ### 内容边界
 
-跨机器消息**经 Anthropic 服务器中转**（同机走本地 socket / 命名管道，不出机器）。两个后果：
+*适用于 Remote Control 这条路。换别的渠道时原则不变——密钥、凭据不进消息——只是谁来中转你的消息变成了那个渠道自己的事。*
+
+跨机器消息(走 Remote Control 时)**经 Anthropic 服务器中转**（同机走本地 socket / 命名管道，不出机器）。两个后果：
 
 1. **密钥、凭据、不该外发的内容一律不进消息。** 这类东西本来就该进文件、进密钥管理，不该在任何通道里传。
 2. **接入了第三方模型端点的会话**（比如工作者跑的是非 Anthropic 模型），跨机器发消息时消息仍然走 Anthropic 的中转。这里的合规边界我没有确切依据，不做判断。
