@@ -10,16 +10,16 @@
 Two models each own one half of the job and hand off through a shared file, not through chat history. The diagrams below expand this: who reads and writes which file, what is checked each round, and the full sequence of one handoff.
 
 ```mermaid
-%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false, "padding": 16}}}%%
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false, "padding": 16, "nodeSpacing": 60, "rankSpacing": 130}}}%%
 flowchart LR
     O["Overseer<br/>sets direction · decides · reviews"]
     CTX[("context.md<br/>shared handoff file")]
     W["Worker<br/>writes code · iterates · commits"]
 
-    O -->|"1. write decisions and tasks"| CTX
-    CTX -->|"2. read tasks, start work"| W
-    W -->|"3. commit code, write handoff"| CTX
-    CTX -->|"4. read handoff, review and approve"| O
+    O -->|"1. write decisions, tasks"| CTX
+    CTX -->|"2. read tasks, start"| W
+    W -->|"3. commit, write handoff"| CTX
+    CTX -->|"4. read handoff, approve"| O
 
     classDef overseer fill:#dbeafe,stroke:#2563eb,color:#1f2328
     classDef worker fill:#dcfce7,stroke:#16a34a,color:#1f2328
