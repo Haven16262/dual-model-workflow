@@ -50,7 +50,7 @@ flowchart LR
     class CTX file
 ```
 
-Messages between the two sessions only wake the other side up; every decision goes into `context.md`, so a fresh session on either side can pick up from the files alone. More detailed diagrams — who reads and writes which file, what the Overseer checks each round, and the full sequence of one handoff — are in [`docs/diagrams.md`](docs/diagrams.md) (labels are in Chinese, like the templates). In those diagrams blue = Overseer, green = Worker, yellow = files, grey = scripts and checks, purple = third-party reviewers.
+Messages between the two sessions only wake the other side up; every decision goes into `context.md`, so a fresh session on either side can pick up from the files alone. More detailed diagrams — who reads and writes which file, what the Overseer checks each round, and the full sequence of one handoff — are in [`docs/diagrams.en.md`](docs/diagrams.en.md) (a Chinese version is in [`docs/diagrams.md`](docs/diagrams.md)). In those diagrams blue = Overseer, green = Worker, yellow = files, grey = scripts and checks, purple = third-party reviewers.
 
 ### The files
 
@@ -107,9 +107,11 @@ templates/   # markdown templates — platform-neutral, shared by both platforms
 scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh (workflow-mode rules, called by the launchers)
+#              ctx-size.py + ctx-pointers.py (context.md length and dangling-pointer checks, run by the Overseer each round)
+#              sessions-md.py (session registry, run at every handoff)
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (optional: third-party reviews, K10)
-#              tests/ (bash test_dual_model_mode.sh ; bash test_k10.sh)  — Linux only; not ported to Windows
-docs/design/ # design records (why the templates say what they say)
+#              tests/ (bash test_dual_model_mode.sh ; test_k10.sh ; test_security_scan.sh ; test_ctx_pointers.sh ; test_sessions_md.sh)  — Linux only; not ported to Windows
+docs/        # design records in docs/design/ (why the templates say what they say); workflow diagrams in diagrams.en.md / diagrams.md
 skills/      # allow-once — install into ~/.claude/skills/
 channel-starter/ # optional: starter kit for a dedicated letter-channel repository (see CROSS-MACHINE.md)
 linux/       # bash helpers (cc / cc-alt / cc-init) — source into ~/.bashrc
@@ -138,10 +140,12 @@ cp -r templates/. ~/.dual-model/templates/
 #   (or: export DUAL_MODEL_TEMPLATES=/abs/path/to/dual-model-workflow/templates)
 
 # 2b. Install the scripts: security precheck (Overseer, before every review) and
-#     workflow-mode rules (read by cc / cc-alt) are core; the k10-*.py files are the
-#     optional third-party-review hooks + watcher — copying them is harmless
+#     workflow-mode rules (read by cc / cc-alt) are core; ctx-*.py (context.md length and
+#     dangling-pointer checks) and sessions-md.py (session registry) are also run by the Overseer
+#     every round / handoff; the k10-*.py files are the optional third-party-review hooks +
+#     watcher — copying them is harmless
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py ~/.claude/scripts/
 
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -188,6 +192,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     cron + flock and is NOT set up for Windows.
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\sessions-md.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. Prepare the settings file for model switching (NEVER commit the key)
 #    ~\.claude\settings.deepseek.json  — DeepSeek endpoint env + API key (Worker)
@@ -409,6 +414,29 @@ MIT — see [LICENSE](LICENSE).
 
 两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-alt` 启动工作者。(`cc` 和 `cc-alt` 是本仓库 helper 文件定义的 shell 函数,见快速开始,不是 Claude Code 自带的命令。)
 
+### 一轮是怎么跑的
+
+```mermaid
+flowchart LR
+    O["全局者<br/>定方向 · 做决策 · 审查"]
+    CTX[("context.md<br/>共享的交接文件")]
+    W["工作者<br/>写代码 · 迭代 · 提交"]
+
+    O -->|"① 写下决策和任务"| CTX
+    CTX -->|"② 读任务,开工"| W
+    W -->|"③ 提交代码,写交接"| CTX
+    CTX -->|"④ 读交接,复审并放行"| O
+
+    classDef overseer fill:#dbeafe,stroke:#2563eb,color:#1f2328
+    classDef worker fill:#dcfce7,stroke:#16a34a,color:#1f2328
+    classDef file fill:#fef9c3,stroke:#ca8a04,color:#1f2328
+    class O overseer
+    class W worker
+    class CTX file
+```
+
+两个会话之间的消息只负责叫醒对方;所有决策都写进 `context.md`,所以任何一方新开会话,只读文件就能接上。更详细的图——谁读写哪些文件、全局者每轮检查什么、一次交接的完整顺序——见 [`docs/diagrams.md`](docs/diagrams.md)(英文版见 [`docs/diagrams.en.md`](docs/diagrams.en.md))。图中蓝 = 全局者,绿 = 工作者,黄 = 文件,灰 = 脚本与检查,紫 = 第三者审查。
+
 ### 文件
 
 每个项目里有哪些文件、各自做什么、谁读谁写,以 [`templates/WORKFLOW.md`](templates/WORKFLOW.md) 的「文件分工」表为准。这里有意不写数量 —— 抄过来的数字会和模板走散。最常碰的几个:
@@ -463,9 +491,11 @@ templates/   # markdown 模板 —— 平台无关,两端共用
 scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash)
 #              worker_guard.py + cc_allow_once.py + worker_guard_test.sh
 #              dual-model-mode.sh —— 工作模式规则,启动器调用它
+#              ctx-size.py + ctx-pointers.py —— context.md 长度与悬空指针检查,全局者每轮运行
+#              sessions-md.py —— 会话注册表,每次交接运行
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 可选:第三者审查(K10)
-#              tests/ —— bash test_dual_model_mode.sh ; bash test_k10.sh(测试套件只支持 Linux,未移植到 Windows)
-docs/design/ # 设计记录(模板为什么这么写)
+#              tests/ —— bash test_dual_model_mode.sh ; test_k10.sh ; test_security_scan.sh ; test_ctx_pointers.sh ; test_sessions_md.sh(测试套件只支持 Linux,未移植到 Windows)
+docs/        # docs/design/ 是设计记录(模板为什么这么写);工作流图在 diagrams.md(中文)/ diagrams.en.md(英文)
 skills/      # allow-once —— 装进 ~/.claude/skills/
 channel-starter/ # 可选:专用信件信道仓库的起步包(见 CROSS-MACHINE.md)
 linux/       # bash helper(cc / cc-alt / cc-init)—— source 进 ~/.bashrc
@@ -494,9 +524,10 @@ cp -r templates/. ~/.dual-model/templates/
 #   (或:export DUAL_MODEL_TEMPLATES=/绝对路径/dual-model-workflow/templates)
 
 # 2b. 安装脚本:安全预检(全局者每次审查前运行)和工作模式规则(cc / cc-alt 读取)是核心;
+#     ctx-*.py(context.md 长度与悬空指针检查)和 sessions-md.py(会话注册表)也由全局者每轮 / 每次交接运行;
 #     k10-*.py 是可选的第三者审查钩子与值班,拷贝进去无副作用
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py ~/.claude/scripts/
 
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -542,6 +573,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     值班 k10-watch.py 依赖 cron + flock,Windows 上没有配。
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\sessions-md.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
 #    ~\.claude\settings.deepseek.json  — DeepSeek 端点 env + API key(工作者)

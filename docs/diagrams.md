@@ -1,5 +1,7 @@
 # 工作关系图
 
+> English version: [diagrams.en.md](diagrams.en.md)
+
 > 这页只放图。规则以 [`templates/WORKFLOW.md`](../templates/WORKFLOW.md) 为准，图和它冲突时改图。
 > 图里不写文件总数、不写版本号：这类数字会漂，文件清单看 WORKFLOW.md 的「文件分工」表。
 
