@@ -10,7 +10,7 @@
 两个模型各管一摊事，靠一份共享文件交接，不靠聊天记录。下面几张图是展开：谁读写哪些文件、每轮检查什么、一次交接的完整顺序。
 
 ```mermaid
-%%{init: {"flowchart": {"padding": 16}}}%%
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false, "padding": 16}}}%%
 flowchart LR
     O["全局者<br/>定方向 · 做决策 · 审查"]
     CTX[("context.md<br/>共享的交接文件")]
@@ -42,7 +42,7 @@ flowchart LR
 颜色：蓝 = 全局者，绿 = 工作者，黄 = 文件，灰 = 脚本与检查，紫 = 第三者。
 
 ```mermaid
-%%{init: {"flowchart": {"padding": 16}}}%%
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false, "padding": 16}}}%%
 flowchart LR
     User(["用户<br/>开两个终端，切换角色"])
 
@@ -96,7 +96,7 @@ flowchart LR
 上半是每个模式都有的检查；下半是比赛模式的第三者自动触发机制（非比赛模式下，架构决策时也可以手动召唤质疑者）。
 
 ```mermaid
-%%{init: {"flowchart": {"padding": 16}}}%%
+%%{init: {"htmlLabels": false, "flowchart": {"htmlLabels": false, "padding": 16}}}%%
 flowchart LR
     O["全局者 Overseer"]
 
