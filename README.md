@@ -29,6 +29,7 @@ The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-a
 ### How a round works
 
 ```mermaid
+%%{init: {"flowchart": {"padding": 16}}}%%
 flowchart LR
     O["Overseer<br/>sets direction · decides · reviews"]
     CTX[("context.md<br/>shared handoff file")]
@@ -417,6 +418,7 @@ MIT — see [LICENSE](LICENSE).
 ### 一轮是怎么跑的
 
 ```mermaid
+%%{init: {"flowchart": {"padding": 16}}}%%
 flowchart LR
     O["全局者<br/>定方向 · 做决策 · 审查"]
     CTX[("context.md<br/>共享的交接文件")]

@@ -10,6 +10,7 @@
 Two models each own one half of the job and hand off through a shared file, not through chat history. The diagrams below expand this: who reads and writes which file, what is checked each round, and the full sequence of one handoff.
 
 ```mermaid
+%%{init: {"flowchart": {"padding": 16}}}%%
 flowchart LR
     O["Overseer<br/>sets direction · decides · reviews"]
     CTX[("context.md<br/>shared handoff file")]
@@ -41,6 +42,7 @@ Solid arrow = write or run; dashed arrow = read or notify; double-headed arrow =
 Colors: blue = Overseer, green = Worker, yellow = files, grey = scripts and checks, purple = third-party reviewers.
 
 ```mermaid
+%%{init: {"flowchart": {"padding": 16}}}%%
 flowchart LR
     User(["User<br/>opens two terminals, switches roles"])
 
@@ -94,6 +96,7 @@ flowchart LR
 The upper half is the set of checks present in every mode; the lower half is the automatic trigger machinery for third-party reviewers (competition mode). Outside competition mode, the Overseer can still summon a skeptic by hand for architecture decisions.
 
 ```mermaid
+%%{init: {"flowchart": {"padding": 16}}}%%
 flowchart LR
     O["Overseer"]
 
