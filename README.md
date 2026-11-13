@@ -26,6 +26,32 @@ This workflow splits the work across **two models with separate roles**, and man
 
 The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-alt` starts the Worker. (`cc` and `cc-alt` are shell functions defined by this repo's helper file — see the Quick start — not commands that ship with Claude Code.)
 
+### How a round works
+
+```mermaid
+flowchart LR
+    O["Overseer<br/>sets direction · decides · reviews"]
+    CTX[("context.md<br/>shared handoff file")]
+    W["Worker<br/>writes code · iterates · commits"]
+
+    O -->|"1. write decisions and tasks"| CTX
+    CTX -->|"2. read tasks, start work"| W
+    W -->|"3. commit code, write handoff"| CTX
+    CTX -->|"4. read handoff, review and approve"| O
+
+    classDef overseer fill:#dbeafe,stroke:#2563eb,color:#1f2328
+    classDef worker fill:#dcfce7,stroke:#16a34a,color:#1f2328
+    classDef file fill:#fef9c3,stroke:#ca8a04,color:#1f2328
+    classDef script fill:#f1f5f9,stroke:#64748b,color:#1f2328
+    classDef third fill:#f3e8ff,stroke:#9333ea,color:#1f2328
+    classDef user fill:#ffffff,stroke:#334155,color:#1f2328
+    class O overseer
+    class W worker
+    class CTX file
+```
+
+Messages between the two sessions only wake the other side up; every decision goes into `context.md`, so a fresh session on either side can pick up from the files alone. More detailed diagrams — who reads and writes which file, what the Overseer checks each round, and the full sequence of one handoff — are in [`docs/diagrams.md`](docs/diagrams.md) (labels are in Chinese, like the templates). In those diagrams blue = Overseer, green = Worker, yellow = files, grey = scripts and checks, purple = third-party reviewers.
+
 ### The files
 
 The authoritative per-project file list — what each file is for, who reads it, who writes it — is the 「文件分工」 table in [`templates/WORKFLOW.md`](templates/WORKFLOW.md). This README deliberately doesn't restate the count; a copied number drifts. The ones you touch most:
