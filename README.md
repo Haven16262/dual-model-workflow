@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/logo.svg" alt="Overseer and Worker handing off through a shared Markdown file" width="560"></p>
+
 # Dual-Model Workflow
 
 A lightweight protocol for pairing two AI coding models — one as **Overseer**, one as **Worker** — coordinated through a few plain Markdown files. Solves single-model context exhaustion and role confusion.
