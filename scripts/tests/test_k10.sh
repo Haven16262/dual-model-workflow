@@ -188,37 +188,91 @@ run_watch "$P" 2026-10-01 j4
 run_watch "$P" 2026-10-01 j5
 run_watch "$P" 2026-10-01 j6
 expect C_badtemplate '[ $RC = 0 ] && grep -q "触发 0 个，待办 0 个" <<<"$OUT" && [ -z "$(find "$T/log-j4" "$T/log-j5" "$T/log-j6" -type f)" ]'
-# 6j A: the settings.json hook command itself (missing script -> exit 0, systemMessage only in competition mode; installed -> runs)
+# 6j A: the settings.json hook command itself. Every exit path is executed here: exec the script (normal),
+# silent exit (missing script, not competition), block once (competition + script missing or no runnable Python,
+# only where the script would have acted: Stop for the overseer, SubagentStop for K10 agent types), systemMessage
+# otherwise. The block is skipped unless stop_hook_active is explicitly false, so a re-stop can never loop.
 TPL=$(cd "$S/../templates" && pwd)/.claude/settings.json
+jf() { python3 -c "import json,sys;print(json.loads(sys.argv[1]).get(sys.argv[2],''))" "$OUT" "$1" 2>/dev/null; } # field of OUT; empty if OUT is not one JSON object
+blocks() { [ $RC = 0 ] && [ "$(jf decision)" = block ] && [ -n "$(jf reason)" ] && [ -n "$(jf systemMessage)" ]; }
+notifies() { [ $RC = 0 ] && [ -z "$(jf decision)" ] && [ -n "$(jf systemMessage)" ]; }
+hk() { # project input [env...] -- runs hook command $c with HOME=$H; stdout -> OUT (what CC parses), stderr -> ERR
+  local q=$1 in=$2; shift 2
+  OUT=$(printf '%s' "$in" | env HOME="$H" CLAUDE_PROJECT_DIR="$q" "$@" sh -c "$c" 2>"$T/hk.err"); RC=$?; ERR=$(cat "$T/hk.err")
+}
 for ev in Stop SubagentStop; do
   c=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1], encoding='utf-8'))['hooks'][sys.argv[2]][0]['hooks'][0]['command'])" "$TPL" "$ev")
   H=$T/home-$ev; mkdir -p "$H"
-  # script missing: loud only for a competition-mode project (K10 actually in play); silent otherwise
+  if [ $ev = Stop ]; then
+    FIRST='{"hook_event_name":"Stop","stop_hook_active":false}'; AGAIN='{"hook_event_name":"Stop","stop_hook_active":true}'
+    OTHER=$FIRST; OTHER_ENV=DUAL_MODEL_ROLE=worker
+  else
+    FIRST='{"hook_event_name":"SubagentStop","stop_hook_active":false,"agent_type":"skeptic","agent_id":"t1","last_assistant_message":"S1 x"}'
+    AGAIN='{"hook_event_name":"SubagentStop","stop_hook_active":true,"agent_type":"skeptic","agent_id":"t1","last_assistant_message":"S1 x"}'
+    # critic is not a K10 type; the escaped look-alike inside the message must not be taken for agent_type
+    OTHER='{"hook_event_name":"SubagentStop","last_assistant_message":"see \"agent_type\":\"skeptic\" \"stop_hook_active\": false","stop_hook_active":false,"agent_type":"critic","agent_id":"t2"}'
+    OTHER_ENV=DUAL_MODEL_ROLE=overseer
+  fi
   PC=$T/proj-comp-$ev; mkproj "$PC" competition
   PW=$T/proj-crlf-$ev; mkdir -p "$PW"; printf '# ctx\r\nworkflow-mode: competition\r\n' > "$PW/context.md"
   PN=$T/proj-plain-$ev; mkproj "$PN" project
   PE=$T/proj-nomode-$ev; mkdir -p "$PE"
+  # script missing x competition: block once, the reason says how to fix; re-stop / other role or agent: notice only
   for q in "$PC" "$PW"; do
-    OUT=$(echo '{}' | HOME="$H" CLAUDE_PROJECT_DIR="$q" sh -c "$c" 2>&1); RC=$?
-    expect A_missing_competition_says_so_$(basename "$q") '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "未安装" <<<"$OUT"'
+    hk "$q" "$FIRST" DUAL_MODEL_ROLE=overseer
+    expect A_missing_competition_blocks_$(basename "$q") 'blocks && grep -q "未安装" <<<"$(jf reason)" && grep -q "WORKFLOW.md「K10 第三者」部署" <<<"$(jf reason)" && { [ $ev = SubagentStop ] || grep -qF "$q/.workflow/reports/" <<<"$(jf reason)"; }'
   done
+  hk "$PC" "$AGAIN" DUAL_MODEL_ROLE=overseer
+  expect A_missing_competition_restop_passes_$ev 'notifies && grep -q "未安装" <<<"$(jf systemMessage)"'
+  hk "$PC" '{}' DUAL_MODEL_ROLE=overseer
+  expect A_missing_competition_no_flag_passes_$ev 'notifies'
+  hk "$PC" "$OTHER" "$OTHER_ENV"
+  expect A_missing_competition_other_passes_$ev 'notifies && grep -q "未安装" <<<"$(jf systemMessage)"'
+  if [ $ev = SubagentStop ]; then # K10_AGENT_TYPES widens / empties the list, as in k10-subagent-report.py
+    hk "$PC" "$OTHER" "$OTHER_ENV" K10_AGENT_TYPES="verifier critic"; expect A_missing_agent_types_override_blocks 'blocks'
+    hk "$PC" "$FIRST" DUAL_MODEL_ROLE=overseer K10_AGENT_TYPES=; expect A_missing_agent_types_empty_passes 'notifies'
+    hk "$PC" '{"stop_hook_active":false,"agent_id":"t3"}' DUAL_MODEL_ROLE=overseer; expect A_missing_no_agent_type_passes 'notifies'
+  fi
+  # Windows-style or quoted paths in the project dir / HOME must still give valid JSON, or CC would fail open
+  PB=$T/'C:\Users\me "q" proj'-$ev; mkproj "$PB" competition
+  OUT=$(printf '%s' "$FIRST" | env HOME="$T/h\\\"$ev" CLAUDE_PROJECT_DIR="$PB" DUAL_MODEL_ROLE=overseer sh -c "$c" 2>/dev/null); RC=$?
+  expect A_missing_backslash_path_still_json_$ev 'blocks && { [ $ev = SubagentStop ] || grep -qF "$PB/.workflow/reports/" <<<"$(jf reason)"; } && grep -qF "h\\\"$ev" <<<"$(jf systemMessage)"'
+  # script missing x not competition: silent, as before (5fd0757)
   for q in "$PN" "$PE"; do
-    OUT=$(echo '{}' | HOME="$H" CLAUDE_PROJECT_DIR="$q" sh -c "$c" 2>&1); RC=$?
-    expect A_missing_silent_$(basename "$q") '[ $RC = 0 ] && [ -z "$OUT" ]'
+    hk "$q" "$FIRST" DUAL_MODEL_ROLE=overseer
+    expect A_missing_silent_$(basename "$q") '[ $RC = 0 ] && [ -z "$OUT$ERR" ]'
   done
+  # normal path: installed scripts really run
   mkdir -p "$H/.claude/scripts"; cp "$S"/k10-*.py "$H/.claude/scripts/"
-  OUT=$(echo '{"agent_type":"x"}' | HOME="$H" DUAL_MODEL_ROLE=worker sh -c "$c" 2>&1); RC=$?
-  expect A_installed_$ev '[ $RC = 0 ] && ! grep -q "未安装" <<<"$OUT"'
+  if [ $ev = Stop ]; then
+    mkdir -p "$PC/.workflow/reports"; printf 'S1 x\n' > "$PC/.workflow/reports/r.md"
+    hk "$PC" "$FIRST" DUAL_MODEL_ROLE=overseer
+    expect A_installed_runs_$ev '[ $RC = 0 ] && [ "$(jf decision)" = block ] && grep -q "K10 强制回应" <<<"$(jf reason)" && grep -q "查了 1 份报告" <<<"$ERR"'
+    rm -rf "$PC/.workflow/reports" "$PC/.workflow/k10-gate.json"
+  else
+    hk "$PC" "$FIRST" DUAL_MODEL_ROLE=overseer
+    expect A_installed_runs_$ev '[ $RC = 0 ] && [ -z "$OUT" ] && ls "$PC"/.workflow/reports/*-skeptic-t1.md >/dev/null 2>&1 && grep -q "k10-subagent-report.*写入" <<<"$ERR"'
+    rm -rf "$PC/.workflow/reports"
+  fi
   # Windows (2026-09-29 MSI): Git Bash finds a Store stub named python3 that only prints "Python was not found".
   # The hook must probe that the interpreter really runs and fall back to python, not fail open silently.
   B=$T/bin-$ev; mkdir -p "$B"; REALPY=$(command -v python3)
   printf '#!/bin/sh\necho "Python was not found"\nexit 9009\n' > "$B/python3"; ln -sf "$REALPY" "$B/python"; chmod +x "$B/python3"
   E=$T/empty-$ev; mkdir -p "$E"
-  OUT=$(echo '{"agent_type":"x","stop_hook_active":false}' | HOME="$H" DUAL_MODEL_ROLE=overseer CLAUDE_PROJECT_DIR="$E" PATH="$B:$PATH" sh -c "$c" 2>&1); RC=$?
-  expect A_stub_python3_falls_back_$ev '[ $RC = 0 ] && ! grep -q "Python was not found" <<<"$OUT" && grep -q "k10-" <<<"$OUT"'
+  hk "$E" '{"agent_type":"x","stop_hook_active":false}' DUAL_MODEL_ROLE=overseer PATH="$B:$PATH"
+  expect A_stub_python3_falls_back_$ev '[ $RC = 0 ] && ! grep -q "Python was not found" <<<"$OUT$ERR" && grep -q "k10-" <<<"$ERR"'
+  # no runnable Python x competition: block once; re-stop / other: notice; not competition: notice as before
   rm -f "$B/python"; printf '#!/bin/sh\nexit 9009\n' > "$B/python"; chmod +x "$B/python"
-  OUT=$(echo '{}' | HOME="$H" PATH="$B:$PATH" sh -c "$c" 2>&1); RC=$?
-  expect A_no_python_says_so_$ev '[ $RC = 0 ] && grep -q "systemMessage" <<<"$OUT" && grep -q "Python" <<<"$OUT" && ! grep -q "未安装" <<<"$OUT"'
+  hk "$PC" "$FIRST" DUAL_MODEL_ROLE=overseer PATH="$B:$PATH"
+  expect A_no_python_competition_blocks_$ev 'blocks && grep -q "Python" <<<"$(jf reason)" && ! grep -q "未安装" <<<"$OUT"'
+  hk "$PC" "$AGAIN" DUAL_MODEL_ROLE=overseer PATH="$B:$PATH"
+  expect A_no_python_competition_restop_passes_$ev 'notifies && grep -q "Python" <<<"$(jf systemMessage)"'
+  hk "$PC" "$OTHER" "$OTHER_ENV" PATH="$B:$PATH"
+  expect A_no_python_competition_other_passes_$ev 'notifies && grep -q "Python" <<<"$(jf systemMessage)"'
+  for q in "$PN" "$PE"; do
+    hk "$q" "$FIRST" DUAL_MODEL_ROLE=overseer PATH="$B:$PATH"
+    expect A_no_python_says_so_$(basename "$q") 'notifies && grep -q "Python" <<<"$(jf systemMessage)" && ! grep -q "未安装" <<<"$OUT"'
+  done
 done
 # 7 proposer isolation: cwd outside project, project path not in prompt
 P=$T/p8; mkproj "$P" competition

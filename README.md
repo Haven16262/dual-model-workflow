@@ -1,6 +1,6 @@
 # Dual-Model Workflow
 
-A lightweight protocol for pairing two AI coding models — one as **Overseer**, one as **Worker** — coordinated through three plain Markdown files. Solves single-model context exhaustion and role confusion.
+A lightweight protocol for pairing two AI coding models — one as **Overseer**, one as **Worker** — coordinated through a few plain Markdown files. Solves single-model context exhaustion and role confusion.
 
 **[English](#english) · [中文](#中文)**
 
@@ -17,7 +17,7 @@ When you use one AI model for a long coding session, two things go wrong:
 1. **Context exhaustion** — as the conversation grows, the model loses early context, repeats mistakes, and drifts off course.
 2. **Role confusion** — you want it to make architecture decisions, it edits code details; you want it to execute, it keeps asking you for direction.
 
-This workflow splits the work across **two models with separate roles**, and manages the shared state in three files so each model only does what it's good at.
+This workflow splits the work across **two models with separate roles**, and manages the shared state in plain files so each model only does what it's good at.
 
 ### Two roles
 
@@ -26,13 +26,15 @@ This workflow splits the work across **two models with separate roles**, and man
 
 The two roles run in separate terminal sessions: `cc` starts the Overseer, `cc-alt` starts the Worker. (`cc` and `cc-alt` are shell functions defined by this repo's helper file — see the Quick start — not commands that ship with Claude Code.)
 
-### Three files
+### The files
+
+The authoritative per-project file list — what each file is for, who reads it, who writes it — is the 「文件分工」 table in [`templates/WORKFLOW.md`](templates/WORKFLOW.md). This README deliberately doesn't restate the count; a copied number drifts. The ones you touch most:
 
 - **`WORKFLOW.md`** — the rules: each role's responsibilities, switch trigger conditions, and the `context.md` write formats. Both models read this on startup so behavior stays consistent.
 - **`CLAUDE.md`** — project-level startup instructions: every session must (1) read `WORKFLOW.md`, (2) read `context.md` (top status block first, then latest history), (3) restate "I am [role], current task is: [summary]" and begin.
-- **`context.md`** — the core. A top `## Current State` block (overwritten on each write — the latest task list) plus an append-only history log (timestamped records of every decision and execution step).
+- **`context.md`** — the core. A top `## Current State` block (rewritten by the Overseer each round — the latest task list; the Worker only appends new entries to the backlog and unverified-premise lists, never overwrites it) plus an append-only history log (timestamped records of every decision and execution step).
 
-These three live in every project that uses the workflow. Two optional documents sit at the repository level instead and are not part of the per-project set: [`CROSS-MACHINE.md`](CROSS-MACHINE.md) (Overseer and Worker, or two Overseers, on different machines) and [`channel-starter/`](channel-starter/) (a dedicated letter-channel repository for projects that share no repository).
+They live in every project that uses the workflow. Two optional documents sit at the repository level instead and are not part of the per-project set: [`CROSS-MACHINE.md`](CROSS-MACHINE.md) (Overseer and Worker, or two Overseers, on different machines) and [`channel-starter/`](channel-starter/) (a dedicated letter-channel repository for projects that share no repository).
 
 ### Prerequisites
 
@@ -113,7 +115,7 @@ cp -r templates/. ~/.dual-model/templates/
 #     workflow-mode rules (read by cc / cc-alt) are core; the k10-*.py files are the
 #     optional third-party-review hooks + watcher — copying them is harmless
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py ~/.claude/scripts/
 
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -159,6 +161,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     2026-09-29: byte-level checked on MSI; end-to-end in CC still pending. k10-watch.py needs
 #     cron + flock and is NOT set up for Windows.
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. Prepare the settings file for model switching (NEVER commit the key)
 #    ~\.claude\settings.deepseek.json  — DeepSeek endpoint env + API key (Worker)
@@ -293,14 +296,9 @@ bash scripts/worker_guard_test.sh          # or: bash scripts/worker_guard_test.
 
 ### Trigger conditions (Worker → Overseer)
 
-The Worker must stop and switch to the Overseer when:
+The authoritative list is the 「切换触发条件」 section of [`templates/WORKFLOW.md`](templates/WORKFLOW.md); it is not copied here because a copy already drifted once (this README listed four conditions while the template had grown more). In short: the Worker stops and hands back on architecture forks, security- or performance-relevant design decisions, a finished module, repeated failed attempts, and — immediately, without trying first — an ambiguous or contradictory spec or a premise that turns out false.
 
-1. There's an architecture fork with multiple options it can't choose between.
-2. It hits a security- or performance-relevant design decision.
-3. It finished a complete module and needs direction confirmed before continuing.
-4. Two consecutive attempts still don't solve a problem.
-
-Condition 4 matters — rather than let the Worker burn tokens trial-and-erroring, switch to the Overseer for a fresh angle.
+The repeated-failure condition matters — rather than let the Worker burn tokens trial-and-erroring, switch to the Overseer for a fresh angle.
 
 ### The review mechanism — and why
 
@@ -376,7 +374,7 @@ MIT — see [LICENSE](LICENSE).
 1. **上下文耗尽** —— 对话越长,模型越会丢失早期上下文,反复犯同样的错,或者做着做着把方向带偏。
 2. **角色混乱** —— 你想让它做架构决策,它去改代码细节;你想让它执行,它却反复问你方向。
 
-这套工作流的思路是:**把两个模型的角色分开**,用三个文件管理协作状态,让每个模型只做自己擅长的事。
+这套工作流的思路是:**把两个模型的角色分开**,用几个纯文本文件管理协作状态,让每个模型只做自己擅长的事。
 
 ### 两个角色
 
@@ -385,13 +383,15 @@ MIT — see [LICENSE](LICENSE).
 
 两个角色跑在不同的终端 session 里,`cc` 启动全局者,`cc-alt` 启动工作者。(`cc` 和 `cc-alt` 是本仓库 helper 文件定义的 shell 函数,见快速开始,不是 Claude Code 自带的命令。)
 
-### 三个文件
+### 文件
+
+每个项目里有哪些文件、各自做什么、谁读谁写,以 [`templates/WORKFLOW.md`](templates/WORKFLOW.md) 的「文件分工」表为准。这里有意不写数量 —— 抄过来的数字会和模板走散。最常碰的几个:
 
 - **`WORKFLOW.md`** —— 游戏规则:两个角色各自的职责、触发切换的条件、`context.md` 的写入格式。每次 session 启动两个模型都先读它,确保行为一致。
 - **`CLAUDE.md`** —— 项目级启动指令:每次 session 必须 (1) 读 `WORKFLOW.md`,(2) 读 `context.md`(先看顶部当前状态,再看最新历史),(3) 复述「我是[角色],当前任务是:[摘要]」再开始。
-- **`context.md`** —— 整个工作流的核心。顶部 `## 当前状态`(每次写入覆盖,放最新任务清单)+ 仅追加的历史记录(每次写入留一条带时间戳的记录)。
+- **`context.md`** —— 整个工作流的核心。顶部 `## 当前状态`(全局者每轮覆盖,放最新任务清单;工作者只往其中 backlog、未验证的前提 末尾追加,不覆盖)+ 仅追加的历史记录(每次写入留一条带时间戳的记录)。
 
-这三个文件存在于每个使用该工作流的项目里。另有两份可选文档放在仓库层面,不属于每个项目都有的那一组:[`CROSS-MACHINE.md`](CROSS-MACHINE.md)(全局者与工作者、或两个全局者分处不同机器时)和 [`channel-starter/`](channel-starter/)(没有共同仓库的项目之间用的专用信件信道仓库)。
+它们存在于每个使用该工作流的项目里。另有两份可选文档放在仓库层面,不属于每个项目都有的那一组:[`CROSS-MACHINE.md`](CROSS-MACHINE.md)(全局者与工作者、或两个全局者分处不同机器时)和 [`channel-starter/`](channel-starter/)(没有共同仓库的项目之间用的专用信件信道仓库)。
 
 ### 前置条件
 
@@ -470,7 +470,7 @@ cp -r templates/. ~/.dual-model/templates/
 # 2b. 安装脚本:安全预检(全局者每次审查前运行)和工作模式规则(cc / cc-alt 读取)是核心;
 #     k10-*.py 是可选的第三者审查钩子与值班,拷贝进去无副作用
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py ~/.claude/scripts/
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py ~/.claude/scripts/
 
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -515,6 +515,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 #     可能是商店占位符);脚本强制 UTF-8 输入输出。2026-09-29 MSI 已测到字节层,CC 里端到端待测。
 #     值班 k10-watch.py 依赖 cron + flock,Windows 上没有配。
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
 #    ~\.claude\settings.deepseek.json  — DeepSeek 端点 env + API key(工作者)
@@ -651,14 +652,9 @@ bash scripts/worker_guard_test.sh          # 或: bash scripts/worker_guard_test
 
 ### 触发切换的条件(工作者 → 全局者)
 
-工作者遇到以下情况必须停下切换到全局者:
+完整清单以 [`templates/WORKFLOW.md`](templates/WORKFLOW.md) 的「切换触发条件」为准,这里不抄 —— 抄过一次就走散了(本 README 曾只列 4 条,模板早已不止)。大意:架构分歧、安全或性能相关的设计决策、完成一个完整模块、反复尝试仍失败,以及 spec 模糊矛盾或前提被证伪(这两类立刻切回,不先尝试)。
 
-1. 出现架构方向分歧,有多个方案无法判断选哪个。
-2. 遇到安全、性能相关的设计决策。
-3. 完成一个完整模块,需要确认方向再继续。
-4. 连续两次尝试仍无法解决某个问题。
-
-条件 4 很重要 —— 与其让工作者反复试错消耗 token,不如切到全局者换个思路。
+「反复尝试仍失败」那条很重要 —— 与其让工作者反复试错消耗 token,不如切到全局者换个思路。
 
 ### 审查机制 —— 以及为什么
 

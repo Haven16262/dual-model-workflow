@@ -6,7 +6,7 @@
 
 开窗 != 授权：窗口只让弹窗能弹出来，权限仍然来自用户在弹窗上点的那一下。
 """
-import os, sys, time, hashlib
+import os, re, sys, time, hashlib
 
 GUARD_DIR = os.path.expanduser("~/.claude/worker-guard")
 WINDOW_SECONDS = 600
@@ -22,8 +22,29 @@ except (AttributeError, ValueError):
     pass
 
 
+def resolve_project():
+    """项目 key 的来源必须和 worker_guard.py 一致，且不随 bash 的 cd 漂移。
+
+    优先级：守卫按 session_id 记下的项目目录（它就是守卫记账用的那个）
+    → CLAUDE_PROJECT_DIR → 进程 cwd（最后兜底，会漂）。返回 (目录, 来源)。
+    """
+    sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    if re.fullmatch(r"[0-9A-Za-z_-]{1,64}", sid):
+        try:
+            with open(os.path.join(GUARD_DIR, "session-" + sid + ".proj"),
+                      encoding="utf-8") as f:
+                d = f.read().strip()
+            if d:
+                return d, "session"
+        except OSError:
+            pass
+    if os.environ.get("CLAUDE_PROJECT_DIR"):
+        return os.environ["CLAUDE_PROJECT_DIR"], "CLAUDE_PROJECT_DIR"
+    return os.getcwd(), "cwd"
+
+
 def main():
-    project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    project, source = resolve_project()
     key = hashlib.md5(os.path.abspath(project).encode("utf-8")).hexdigest()[:10]
     q = os.path.join(GUARD_DIR, key + ".queue")
     win = os.path.join(GUARD_DIR, key + ".window")
@@ -35,6 +56,9 @@ def main():
 
     print("窗口已开 → %s 失效（%d 分钟）"
           % (time.strftime("%H:%M", time.localtime(expiry)), WINDOW_SECONDS // 60))
+    print("项目：%s（来源：%s）" % (os.path.abspath(project), source))
+    if source == "cwd":
+        print("⚠ 没找到守卫记下的会话目录，按进程 cwd 记账；若 bash 曾 cd 离开会话目录，窗口可能开错 key。")
 
     entries = []
     try:

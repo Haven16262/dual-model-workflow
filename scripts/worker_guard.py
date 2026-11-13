@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse 守卫：只加载给工作者会话（cc-alt 经 --settings 传入）。
+"""PreToolUse 守卫：只加载给工作者会话（cc-alt 经 --settings 传入 alt/settings/<provider>.json）。
 
 把「会弹窗、但没人能批准」的命令，在弹窗打开之前拦掉。权限弹窗不会超时，
 工作者一旦弹出来就是无限期挂死；拦在前面它才能跳过去做别的。
@@ -95,6 +95,30 @@ def project_key(d):
     return hashlib.md5(os.path.abspath(d).encode("utf-8")).hexdigest()[:10]
 
 
+def record_session(session_id, project):
+    """记下 session_id → 项目目录，供 /allow-once 的 `!` 行反查。
+
+    `!` 行里拿不到 hook 的项目目录，退而用进程 cwd，而 cwd 会跟着会话 bash 的
+    cd 漂走（实测 2026-10-08：窗口开在另一个 key 上，被拦命令永远卡住）。
+    CLAUDE_CODE_SESSION_ID 两边都有，不随 cd 变，用它当桥。内容没变就不写盘。
+    """
+    if not re.fullmatch(r"[0-9A-Za-z_-]{1,64}", session_id or ""):
+        return
+    f = os.path.join(GUARD_DIR, "session-" + session_id + ".proj")
+    try:
+        with open(f, encoding="utf-8") as fh:
+            if fh.read() == project:
+                return
+    except OSError:
+        pass
+    try:
+        os.makedirs(GUARD_DIR, exist_ok=True)
+        with open(f, "w", encoding="utf-8") as fh:
+            fh.write(project)
+    except OSError:
+        pass
+
+
 def paths(d):
     k = project_key(d)
     return (os.path.join(GUARD_DIR, k + ".queue"),
@@ -161,6 +185,7 @@ def main():
 
     project = os.environ.get("CLAUDE_PROJECT_DIR") or data.get("cwd") or os.getcwd()
     q, win = paths(project)
+    record_session(data.get("session_id"), project)
 
     segments = list(parse_segments(cmd))
 
