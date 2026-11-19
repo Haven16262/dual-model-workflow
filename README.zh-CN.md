@@ -2,24 +2,31 @@
 
 # Dual-Model Workflow
 
-一套轻量协议:让两个 AI 编码模型分别担任**全局者**和**工作者**,通过几个纯 Markdown 文件协作。解决单个模型上下文耗尽和角色混乱的问题。
+一套轻量协议:让两个 AI 编码模型分别担任**全局者**和**工作者**,通过几个纯 Markdown 文件协作。它省额度、让另一个模型做复核,并把项目状态落在文件里,不随某一个会话消失。
 
 **[English](README.md) · 中文**
 
 > 运行在 [Claude Code](https://claude.com/claude-code) 命令行之上,需先自行安装,本仓库不负责安装。Claude 账号**不是必须的**:两个角色都可以接任意 Anthropic 兼容的模型端点,见[前置条件](#前置条件)。
 
-**目录:** [问题](#问题) · [两个角色](#两个角色) · [一轮是怎么跑的](#一轮是怎么跑的) · [文件](#文件) · [前置条件](#前置条件) · [快速开始](#quick-start) · [切换角色](#切换角色) · [高级主题](#高级主题) · [许可证](#许可证)
+> **本仓库的定位**:一个人的工作流快照,公开出来作展示,不是维护中的产品;版本之间不承诺兼容。
+>
+> **快照。** 每次导出到本仓库是一个提交,带 annotated tag `snapshot-YYYY-MM-DD`;`main` 只是最新的那份快照。想要一份不会动的,就固定在某个 tag 上。两份快照之间,文件可能被改名、拆分或删除,不会替你迁移。每个模板文件的第一行是版本戳(`<!-- dmw-template … -->`),给作者自己的升级工具用,该工具不公开,可以忽略这一行。
+
+**目录:** [为什么用它](#为什么用它) · [两个角色](#两个角色) · [一轮是怎么跑的](#一轮是怎么跑的) · [文件](#文件) · [前置条件](#前置条件) · [快速开始](#quick-start) · [切换角色](#切换角色) · [高级主题](#高级主题) · [许可证](#许可证)
 
 ---
 
-## 问题
+## 为什么用它
 
-用单个 AI 模型做长时间开发,有两个常见问题:
+今天用它的理由有三条:
 
-1. **上下文耗尽** —— 对话越长,模型越会丢失早期上下文,反复犯同样的错,或者做着做着把方向带偏。
-2. **角色混乱** —— 你想让它做架构决策,它去改代码细节;你想让它执行,它却反复问你方向。
+1. **省额度** —— 大部分读文件、写代码、迭代修改交给便宜的模型(工作者);强模型(全局者)只花在决策和审查上。
+2. **异构复核** —— 两个角色跑在不同模型上时,全局者审的是另一个模型写的东西,复核不会和作者共享同一套盲区。
+3. **状态落在文件里** —— 决策、任务、交接都是项目里的纯 Markdown,新会话(或另一台机器)能从上一个会话停下的地方接着做。
 
-这套工作流的思路是:**把两个模型的角色分开**,用几个纯文本文件管理协作状态,让每个模型只做自己擅长的事。
+它是多会话协作的一个普通用法,不是这方面的框架。
+
+*历史:* 这套工作流最初是为了解决单模型长会话的两个问题:上下文耗尽和角色混乱。新一代模型和 Claude Code 的新功能已经让这两点变弱,它们不再是使用它的主要理由。
 
 ## 两个角色
 
@@ -56,11 +63,11 @@ flowchart LR
 
 每个项目里有哪些文件、各自做什么、谁读谁写,以 [`templates/WORKFLOW.md`](templates/WORKFLOW.md) 的「文件分工」表为准。这里有意不写数量 —— 抄过来的数字会和模板走散。最常碰的几个:
 
-- **`WORKFLOW.md`** —— 游戏规则:两个角色各自的职责、触发切换的条件、`context.md` 的写入格式。每次 session 启动两个模型都先读它,确保行为一致。
+- **`WORKFLOW.md`** —— 两个角色共用的游戏规则:工作者的职责、触发切换的条件、`context.md` 的写入格式。每次 session 启动两个模型都先读它,确保行为一致。只有全局者要读的规则(工作模式、第三者审查、Phase 关闭、交接审查)在 **`.workflow/overseer.md`** 里,由全局者通读;工作者平时不读,任务行或 `WORKFLOW.md` 里的指针点名某一章时才去读那一章。
 - **`CLAUDE.md`** —— 项目级启动指令:每次 session 必须 (1) 读 `WORKFLOW.md`,(2) 读 `context.md`(先看顶部当前状态,再看最新历史),(3) 复述「我是[角色],当前任务是:[摘要]」再开始。
 - **`context.md`** —— 整个工作流的核心。顶部 `## 当前状态`(全局者每轮覆盖,放最新任务清单;工作者只往其中 backlog、未验证的前提 末尾追加,不覆盖)+ 仅追加的历史记录(每次写入留一条带时间戳的记录)。
 
-它们存在于每个使用该工作流的项目里。另有两份可选文档放在仓库层面,不属于每个项目都有的那一组:[`CROSS-MACHINE.md`](CROSS-MACHINE.md)(全局者与工作者、或两个全局者分处不同机器时)和 [`channel-starter/`](channel-starter/)(没有共同仓库的项目之间用的专用信件信道仓库)。
+它们存在于每个使用该工作流的项目里。另有两份可选文档放在仓库层面,不属于每个项目都有的那一组:[`CROSS-MACHINE.md`](CROSS-MACHINE.md)(全局者与工作者、或两个全局者分处不同机器时)和 [`channel-starter/`](channel-starter/)(没有共同项目仓库的两端之间用的信件信道仓库的起步包;是一份发布的快照,不与任何在用信道同步)。
 
 ### `context.md` 长什么样
 
@@ -109,6 +116,7 @@ command -v claude >/dev/null && claude --version || echo "claude not found —�
 # 1. 克隆
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
+#   (可选)固定在某个快照上,而不是跟着 main:  git tag --list 'snapshot-*'  然后  git checkout <tag>
 
 # 2. 把模板放到默认位置
 mkdir -p ~/.dual-model/templates
@@ -120,7 +128,8 @@ cp -r templates/. ~/.dual-model/templates/
 #     ctx-*.py(context.md 长度与悬空指针检查)和 sessions-md.py(会话注册表)也由全局者每轮 / 每次交接运行;
 #     k10-*.py 是可选的第三者审查钩子与值班,拷贝进去无副作用
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py ~/.claude/scripts/
+#     handoff-check.py 机械核对工作者的交接块(提交 sha、必填字段、闸门结果里的 `rc=`),两个角色都会运行
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py scripts/handoff-check.py ~/.claude/scripts/
 
 # 3. 在 shell 配置里导出你的 DeepSeek key(绝不要提交进仓库)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -150,6 +159,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) { claude --version } else 
 # 1. 克隆
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
+#   (可选)固定在某个快照上,而不是跟着 main:  git tag --list 'snapshot-*'  然后  git checkout <tag>
 
 # 2. 把模板放到默认位置
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
@@ -168,6 +178,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\sessions-md.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\handoff-check.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. 准备模型切换用的 settings(key 绝不要提交进仓库)
 #    ~\.claude\settings.deepseek.json  — DeepSeek 端点 env + API key(工作者)
@@ -402,6 +413,7 @@ scripts/     # security-scan.sh —— bash,两端都能跑(Windows 走 Git Bash
 #              dual-model-mode.sh —— 工作模式规则,启动器调用它
 #              ctx-size.py + ctx-pointers.py —— context.md 长度与悬空指针检查,全局者每轮运行
 #              sessions-md.py —— 会话注册表,每次交接运行
+#              handoff-check.py —— 机械核对工作者的交接块,交接前运行、全局者接手时再运行
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py —— 可选:第三者审查(K10)
 #              tests/ —— bash test_dual_model_mode.sh ; test_k10.sh ; test_security_scan.sh ; test_ctx_pointers.sh ; test_sessions_md.sh(测试套件只支持 Linux,未移植到 Windows)
 docs/        # docs/design/ 是设计记录(模板为什么这么写);工作流图在 diagrams.md(中文)/ diagrams.en.md(英文)

@@ -1,6 +1,7 @@
 ---
 description: 切换到全局者角色 —— 读 context.md 里工作者的最新交接并复审,做架构与安全决策。用户在全局者终端手打 /as-overseer,或收到工作者发来的「已写入 context.md」跨会话通知时使用。
 ---
+<!-- dmw-template: .claude/commands/as-overseer.md r21 sha=d9f146f363ee -->
 
 # /as-overseer — 接手全局者角色
 
@@ -15,30 +16,13 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
 
 ## 执行步骤
 
-1. **读 WORKFLOW.md 顶部**（若本会话尚未读过），确认自己作为全局者的职责与原则
-   - **本会话首次时顺带对一次版本**（每会话一次，不是每轮）。取
-     `T="${DUAL_MODEL_TEMPLATES:-/root/workspace/core/dual-model-workflow/templates}"`
-     （后半是 VPS 上的仓库路径，其它机器靠 `DUAL_MODEL_TEMPLATES` 覆盖）。
-   - **先判 `T` 在不在**（`[ -d "$T" ]`）。不在就跳过这一步，并在第 3 步报一句：
-     > (版本检查跳过：模板路径未配置。设 `DUAL_MODEL_TEMPLATES` 指向
-     > dual-model-workflow 仓库的 `templates/`)
-
-     **不要硬跑那四条 diff** —— 上面那个回退值是 VPS 的绝对路径，在任何别的机器上
-     会输出四行 `No such file or directory`。那不是「有差异」，是配置缺失；而四行看不懂
-     的报错和噪音等效。把静默/费解的失败换成一句照着做就能修的话。
-   - `T` 存在时，对这四个文件各跑一次
-     `diff -q --strip-trailing-cr <本地路径> "$T/<同样的相对路径>"`：
-     `WORKFLOW.md`、`.claude/commands/as-overseer.md`、`.claude/commands/as-worker.md`、
-     `.claude/agents/critic.md`
-   - 后三个都带检查项或审查规则，**副本旧了会静默丢掉**，所以都要比。
-   - **`--strip-trailing-cr` 不能省**：Windows 侧镜像目录是 CRLF、git 克隆是 LF，裸 `diff`
-     恒报差异 —— 每次都报的假警报，正是让人开始无视输出的东西。
-   - **`.claude/agents/critic.md` 必须是实体文件，不许换成软链。** 它随仓库走，异地
-     clone（如 music-player 的 Windows 端）拿到的软链会指向一个不存在的本机路径，且不报错。
-     用户级 `~/.claude/agents/critic.md` 反过来：那份不入库、不离开本机，才适合用软链。
-     副本该不该消灭，取决于它会不会离开这台机器。
+1. **读 WORKFLOW.md 与 `.workflow/overseer.md`**（若本会话尚未读过；前者是两个角色共用的部分，后者是全局者手册，正文原样从 WORKFLOW.md 拆出，WORKFLOW.md 文首的章节索引说明哪章在哪个文件），确认自己作为全局者的职责与原则
+   - **本会话首次时顺带对一次版本**（每会话一次，不是每轮）：在项目根目录跑 `python3 ~/.claude/scripts/dmw-version.py check .`
+     （只读。逐个比对 WORKFLOW.md、`.workflow/overseer.md`、两个 as-*.md、critic.md 与模板的版本戳和内容；
+     CRLF 不算差异；退出 0 = 都是现行版本，3 = 有落后或本地改过，逐行列出；1 或 2 = 没跑成，它会说原因 —— 不要当作没有差异）。
+     脚本不存在（`No such file`，如只装了公开仓的模板）：在第 3 步报一句「版本检查跳过：dmw-version.py 不存在」，不阻塞。
    - **有差异不要自己同步** —— 项目副本可能是有意改的，也可能反而是模板旧了。
-     只在第 3 步报一声，刷新方向由用户定。
+     只在第 3 步报一声，刷新方向由用户定；要升时用 `dmw-version.py upgrade <项目目录>` 出计划（默认不写文件）。
 2. **读 context.md**:
    - 优先看顶部 `## 当前状态` 区块
    - 再看最新的历史记录，定位最近一条「工作者」或「工作者 → 全局者」条目
@@ -78,7 +62,7 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
    退出码 2 时追加，先修好重跑（多半是 base 写错）；修不好就按命中处理，照样做结构化安全审查：
    > （安全预检没跑成 ⚠️：<它的 stderr>）
 
-   模式行不存在时写「模式 未选 ⚠️」，并把「提出模式建议」作为本轮第一件事（见 WORKFLOW.md「工作模式与旋钮表」）。
+   模式行不存在时写「模式 未选 ⚠️」，并把「提出模式建议」作为本轮第一件事（见 `.workflow/overseer.md`「工作模式与旋钮表」）。
    `$CLAUDE_EFFORT` 读出来是空的时追加（变量名可能随 CC 版本变了，读不到不能当作正常）：
    > （effort 读不到 ⚠️ —— 用 /effort 看一眼，或查 CC 版本说明）
 
@@ -100,9 +84,9 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
 
    sessions.md：`sessions-md rc=0` 且 grep 出了数字时不另起一句，括号里带上「sessions.md 空备注 N 行」。
    项目里还没有 sessions.md（印了「sessions.md 未生成」）时，括号里写「sessions.md 未生成，按来源算空备注 N 行」；
-   WORKFLOW.md 的交接序列里已经有登记那一步、文件却还没生成，说明那一步一直没人跑，照实告诉用户。下面三种追加：
+   `.workflow/overseer.md`「全局者 → 工作者」的交接序列里已经有登记那一步、文件却还没生成，说明那一步一直没人跑，照实告诉用户。下面三种追加：
    脚本不存在（印了「sessions-md.py 不存在」，这时 rc 是 2）：
-   > （sessions.md 检查没跑成 ⚠️：~/.claude/scripts/sessions-md.py 不存在 —— 部署见 WORKFLOW.md「K10 第三者」一节的「部署」条）
+   > （sessions.md 检查没跑成 ⚠️：~/.claude/scripts/sessions-md.py 不存在 —— 部署见 `.workflow/overseer.md`「K10 第三者（续）」的「部署」条）
 
    退出码非 0（1 = 拒绝：已有 sessions.md 解析不了、本项目 0 个会话等；2 = 用法错误或脚本打不开）：
    > （sessions.md 检查没跑成 ⚠️ rc=1：<它打印的最后一行>）
@@ -125,40 +109,44 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
    `k10.json` 存在、而 `k10-state.json` 不存在，或者比 cron 周期旧很多时追加：
    > （K9 值班可能没在跑 ⚠️ —— k10-state.json 最后更新于 <时间>）
 
-   `context.md` ≥ 300 行时追加（WORKFLOW.md「长度规则」的软上限）：
+   `context.md` ≥ 300 行时追加（`.workflow/overseer.md`「长度规则」的软上限）：
    > （context 334 行 / 31000 字符 ⚠️ 超软上限，下一轮决策前先清理：旧轮迁 `context_history.md`）
 
-   ctx-size.py 印出「超线」时同样追加（字符线见 WORKFLOW.md「长度规则」，软线、只提醒）：
+   ctx-size.py 印出「超线」时同样追加（字符线见 `.workflow/overseer.md`「长度规则」，软线、只提醒）：
    > （context 290 行 / 51283 字符 ⚠️ 超字符线 N（N 取自 ctx-size.py 输出的「字符线 N」），下一轮决策前先清理：旧轮迁 `context_history.md`）
 
    `context_history.md` ≥ 1800 行时追加：
-   > （history 2407 行 ⚠️ 建议做一次阶段封存，见 WORKFLOW.md「Phase 关闭时的归档操作」）
+   > （history 2407 行 ⚠️ 建议做一次阶段封存，见 `.workflow/overseer.md`「Phase 关闭时的归档操作」）
 
    **特例：`context_history.md` 不存在而 `context.md` 已超线** —— 说明三层历史机制
    在本项目从未启动过，历史一直堆在 `context.md` 里。这种漏法没有「变长」的过程可察觉，
    从第一天起就是那样。此时先建 `context_history.md` 再迁，别只做清理。
 
-   本会话首次、且第 1 步的版本对比有差异时，再追加一句：
-   > （工作流副本与模板不一致：WORKFLOW.md ⚠️ —— 要先同步吗?）
+   本会话首次、且第 1 步的 `dmw-version.py check` 退出 3 时，再追加一句（把它列出的发现行带上）：
+   > （工作流副本落后或本地改过 ⚠️：<dmw-version.py 的发现行> —— 要先升级吗?）
+
+   退出 1 或 2（范围算不出 / 没找到模板根；它在 stderr 里说了原因）时改追加，不能当作「没有差异」：
+   > （版本检查没跑成 ⚠️：<它的 stderr 第一行>）
 
    不是错误，是信号 —— 不阻塞本轮工作，阈值本身也是弹性的。但**行数这一段是必发的**：
    判定条件放在输出之后，不放在输出之前 —— 写成「超线才提」等于漏检时悄无声息，
    写成「无条件打印」则漏检表现为复述句里少一段，用户当场看得见。
 4. **若工作者交付了完成阶段（有「关键决策点」四项）**：
+   - **先跑 `python3 ~/.claude/scripts/handoff-check.py`**（只读，不带 `--fresh`）：它机械核对提交行与 sha、交接块三个标签与四个关键词、闸门里的 `rc=`、「当前状态」两行、工作树有无未提交改动、时间戳、交接块里有无行首 `workflow-mode:`；
+     退出 3 就按它列的逐条退回；它不核对内容是否属实，下面各项照旧。脚本不存在时，照实告诉用户，按下面的文字手工核对
    - **先核对提交**：「完成情况」开头应是 `` 提交：`<sha>`； ``，且 `git cat-file -t <sha>` 输出 `commit`、
      `git merge-base --is-ancestor <sha> HEAD` 退出 0（不是 HEAD 祖先的 sha，第 2 步取 base 时会被略过）。
      有文件改动却没写 sha、sha 不是提交、或交接块里说改了的文件在 `git status --porcelain -- <这些文件>` 里仍列为未提交（`context.md` 除外）→
      **退回，要求先提交，本轮不放行**，后面几项不必再审。写「提交：无（<原因>）」的，核对确实没有文件改动后照常审
    - 核对四项：架构/接口变动、安全相关、偏离原计划、未解决的疑虑
-   - 交接块里的「闸门结果」「spec 修正」两个字段，按 WORKFLOW.md 同一段后面「交接块里另外两个字段」处理：
+   - 交接块里的「闸门结果」「spec 修正」两个字段，按 `.workflow/overseer.md`「全局者审查交接时」里「交接块里另外两个字段」处理：
      闸门结果核对原始输出、`rc=N` 与自报的通过/失败一致，对比上一轮找回归（有回归时「完成情况」紧跟「提交：…；」的第一句应写明），只有摘要或没写 rc 的退回补贴；
      标「可重跑」的闸门在 rc≠0、尾部计数与 rc 对不上、或 phase 关闭前自己重跑一次，只看退出码和计数行，平时不强制每轮重跑；
      没标的按「不可重跑」处理，并在本轮写「当前状态」时补标；
      spec 修正逐条确认确属笔误类，确认结果写进本轮全局者条目的「spec 修正确认」
    - 没有工具判定的质量项：核对「完成情况」里对判据清单（截图条件、可观察断言）的逐条回答，
      然后**自己读图 / 读产出** —— 这是最终闸门，不凭工作者的自报放行
-   - 架构/接口变动、偏离原计划、未解决的疑虑三项非空时，按 WORKFLOW.md **工作者写入「本 Phase 历史」（append）**
-     一节末尾「全局者审查交接时」那段处理。那段在文件末尾，第 1 步只读顶部时读不到，所以在这里指过去
+   - 架构/接口变动、偏离原计划、未解决的疑虑三项非空时，按 `.workflow/overseer.md`「全局者审查交接时」那段处理
    - **若「安全相关」非空，或第 2 步预检退出码 1（退出码 2 修不好时同此）→ 必须做结构化安全审查**，凭报告判断，不得仅凭摘要放行：
      - 首选 invoke `critic` 子代理（`.claude/agents/critic.md`）对工作者点名的相关文件审查
      - 注意：它是项目级 agent，只有从项目目录启动 claude 才注册 —— 从 `/root` 起
@@ -172,6 +160,7 @@ description: 切换到全局者角色 —— 读 context.md 里工作者的最�
      全局者自己实现、没有工作者提交时，取自己提交后的 `git rev-parse --short HEAD`。
      工作树里未提交的改动不能放行 —— 写不出一个真实提交的 sha，就是该退回
 5. **若工作者触发切换（遇到无法决策的问题）**：
+   - **先跑 `python3 ~/.claude/scripts/handoff-check.py`**（只读，不带 `--fresh`）：这种块没有「完成情况」，它按「问题 / 已尝试 / 需要决策」三个标签查，并查时间戳、「当前状态」两行、有无行首 `workflow-mode:`、这一轮有没有写出格式正确的新块（没写或标题写错会落回上一轮的旧块，它会报 H0）；**不查提交与工作树**（切换时常有未提交的半成品）。退出 3 就按它列的退回；脚本不存在时照实告诉用户
    - 阅读「问题 / 已尝试 / 需要决策 / 附带变动 / spec 修正」；spec 修正非空时同第 4 步逐条确认，结果写进本轮全局者条目的「spec 修正确认」
    - 交接块报「某条前提不成立」时（切换触发条件第 6 条）：核实后，把「当前状态」里原来那条「- [ ]」改成「⚠️ 已证伪」条目
      （沿用 WORKFLOW.md 模板的格式，`ctx-size.py` 按它认墓碑），列出受影响的决策 —— 工作者不改已有条目，这一步只能由你做

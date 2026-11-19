@@ -25,7 +25,7 @@ Usually you don't. Work through these in order:
 
 1. **Both machines work on the same git repository** → you need this. Read on.
 2. **Each machine does its own thing and you just want to tell the other something once** ("I changed the shared config, heads up") → one message is enough. Don't build anything.
-3. **Two different projects negotiating the same question over and over, across machines** → neither of the above. Use a dedicated channel repository; see [On a dedicated "message repository"](#on-a-dedicated-message-repository).
+3. **Two different projects negotiating the same question over and over, across machines — or an exchange that needs a record the other side can review later (a review request and its verdict, a handoff note)** → neither of the above. Use a dedicated channel repository; see [On a dedicated "message repository"](#on-a-dedicated-message-repository).
 4. **Putting a project's Overseer on machine A and its Worker on machine B** → **don't**. That stretches the same-machine protocol past what it was built for: every handoff of `context.md` now has to round-trip through push/pull, and more breaks than you save. A Worker belongs on the same machine as its Overseer.
 
 The normal cross-machine shape is **two Overseers talking to each other**, each with its own Worker at home. What crosses the wire is direction-alignment, not task assignment.
@@ -54,7 +54,7 @@ So a cross-machine handoff is three steps, not one:
 
 The receiving side: **`git pull` first, then read the file**, then run the full procedure. Never start work from the message's description of it.
 
-**If the two machines share no repository**, first work out which case you're in: a one-off handoff that has nowhere to land means the work shouldn't have been split this way — take it back to your user. Sustained negotiation between two different projects is a different case and has its own answer, below. What is never right is forcing content through messages because there's nowhere to put it.
+**If the two machines share no repository**, first work out which case you're in: a one-off handoff that has nowhere to land: if it only needs a heads-up, one message is enough (case 2 above); if it needs a record the other side can check later, write the content into a file in a channel repository and send only a pointer (below). Sustained negotiation between two different projects is the long-haul version of the same thing. What is never right is forcing content through messages because there's nowhere to put it.
 
 <h3 id="on-a-dedicated-message-repository">On a dedicated "message repository"</h3>
 
@@ -62,7 +62,7 @@ Two cases; don't conflate them.
 
 **Same project, across machines → don't build one. Use the project repository.** The problem a dedicated message repository would solve is one the project repository already solves: it's on both machines, diffable, and traceable by construction. An extra repository means one more thing to pull, one more thing to forget to sync, and one more place that can disagree with `context.md` without telling you which to believe. **A handoff record that lives in a different repository from the code it describes is pure liability.**
 
-**Two different projects, negotiating over the long haul → build one.** Here there is no shared project repository to fall back on, and the alternative in practice is a human copy-pasting between machines. That loses messages: in one real channel, two were lost, and both were errata — the one kind of message whose loss doesn't cost you information but leaves a known error alive in the other side's records under the guise of being correct. One letter per file per commit fixes that structurally: commits don't vanish, and a gap in the numbering is the alarm.
+**Two different projects, negotiating over the long haul, or an exchange that needs a record the other side can review later → build one.** Here there is no shared project repository to fall back on, and the alternative in practice is a human copy-pasting between machines. That loses messages: in one real channel, two were lost, and both were errata — the one kind of message whose loss doesn't cost you information but leaves a known error alive in the other side's records under the guise of being correct. One letter per file per commit fixes that structurally: commits don't vanish, and a gap in the numbering is the alarm.
 
 That is a different mechanism with its own protocol, not something this document defines. A minimal starter kit for such a channel — layout, letter template, and a gate script the reader runs after every pull — is in [`channel-starter/`](channel-starter/). What carries over unchanged is the iron rule: **the letter goes in the repository, the message is only a pointer to it.**
 
@@ -181,7 +181,7 @@ It prompts even under `bypassPermissions`.
 
 1. **两台机器在同一个 git 仓库上干活** → 需要，往下读。
 2. **两台机器各干各的，只是想互相通知一声**（「我这边改了共享配置，你注意」）→ 一条消息就够了，不用建任何机制。
-3. **两个不同项目、跨机器、就同一件事反复协商** → 上面两条都不适用，用专门的信道仓库，见[「要不要建一个专门的消息仓库」](#关于要不要建一个专门的消息仓库)。
+3. **两个不同项目、跨机器、就同一件事反复协商，或者一次需要留档、事后可复核的交换（复核请求与结论、交接说明）** → 上面两条都不适用，用专门的信道仓库，见[「要不要建一个专门的消息仓库」](#关于要不要建一个专门的消息仓库)。
 4. **想把一个项目的全局者放 A 机、工作者放 B 机** → **不要这么做**。这是把同机协议硬拉长，`context.md` 每次交接都要过一遍 push/pull，出错的地方比省下的多。工作者应该和它的全局者在同一台机器上。
 
 跨机器的正常形态是**两个全局者对话**：各自机器上带着自己的工作者，跨机器传的是「方向对齐」，不是「派活」。
@@ -214,7 +214,7 @@ It prompts even under `bypassPermissions`.
 
 收到方：**先 `git pull`，再读文件**，然后走完整流程。不要凭消息里的描述开始干活。
 
-**如果两台机器没有共享仓库**，先分清是哪一类：一次性交接却无处落地，说明这件事本来就不该跨机器拆，回到用户那里；两个不同项目的长期协商是另一类，答案在下一节。**永远不对的是「没地方放所以塞进消息」。**
+**如果两台机器没有共享仓库**，先分清是哪一类：一次性交接却无处落地：只需要知会一声，一条消息就够（上面第 2 条）；需要留档、让对端事后能复核，就把正文写进信道仓库里的一个文件、只发一条指针（见下一节）。两个不同项目的长期协商是同一件事的长期版本。**永远不对的是「没地方放所以塞进消息」。**
 
 ---
 
@@ -224,7 +224,7 @@ It prompts even under `bypassPermissions`.
 
 **同一个项目跨机器 → 不要建，用项目仓库本身。** 专门的消息仓库要解决的问题，项目仓库已经解决了——它天然是两端都有、可 diff、可追溯的。多一个仓库意味着多一处要 pull、多一处会忘记同步、多一处和 `context.md` 说法不一致时不知道信谁。**交接记录和它描述的代码不在同一个仓库里，是纯粹的负债。**
 
-**两个不同项目长期协商 → 建。** 这类信道没有共享项目仓库可依托，现实中的替代方案就是人工在两台机器之间转发——而人工转发会丢信。真实案例：一条跑了三周的信道丢过两封，**两封都是勘误**，而勘误是唯一一类「丢了不是少一条信息，而是让一条已知错误在对方档案里继续以正确身份存活」的消息。一封信一个文件一个 commit 能从结构上消掉它：commit 不会丢，编号断号就是告警。
+**两个不同项目长期协商，或需要留档、让对端事后可复核的一次性交换 → 建。** 这类信道没有共享项目仓库可依托，现实中的替代方案就是人工在两台机器之间转发——而人工转发会丢信。真实案例：一条跑了三周的信道丢过两封，**两封都是勘误**，而勘误是唯一一类「丢了不是少一条信息，而是让一条已知错误在对方档案里继续以正确身份存活」的消息。一封信一个文件一个 commit 能从结构上消掉它：commit 不会丢，编号断号就是告警。
 
 那是另一套机制，有自己的协议，不由本文档定义。这类信道的最小起步包——目录布局、信件模板、读方每次 pull 后跑的闸门脚本——在 [`channel-starter/`](channel-starter/)。**不变的是铁律：信件进仓库，消息只是指向它的指针。**
 

@@ -1,6 +1,6 @@
 # Channel starter
 
-A minimal kit for a **long-lived letter channel** between two projects (or two machines) that share no project repository: a layout, a letter template, and a gate script that tells the reader whether the channel is intact.
+A minimal kit for a **letter channel** between two projects (or two machines) that share no project repository — long-lived, or a series of one-off exchanges that each need a record: a layout, a letter template, and a gate script that tells the reader whether the channel is intact.
 
 **[English](#english) · [中文](#中文)**
 
@@ -8,12 +8,14 @@ A minimal kit for a **long-lived letter channel** between two projects (or two m
 
 ## English
 
+> **Provenance and scope.** This kit is a published *snapshot* distilled from a private channel repository that is still in use; it is **not kept in sync** with it. The live channel differs on purpose: letter types and file names are written in Chinese there (`回复`, `勘误` …), where this kit uses the English `notice-before | notice-after | reply | erratum | closure`, and its reader gate is a different script. A gate written for one will report every letter of the other as malformed. Copy this kit as a starting point; do not mix the two.
+
 ### When to use this — and when not to
 
 Read [`../CROSS-MACHINE.md`](../CROSS-MACHINE.md) first. In short:
 
 - **Two machines working on the same project** → no channel repository; the project repository is the channel.
-- **Two different projects negotiating the same questions over a long time, with no shared repository** → this kit. The usual alternative is a human copying text between machines, and that loses messages.
+- **Two different projects negotiating the same questions over a long time, with no shared repository — or two machines exchanging one-off items that need a record the other side can review** → this kit. The usual alternative is a human copying text between machines, and that loses messages.
 
 The channel carries letters. *How you tell the other side a letter exists* (a chat message, e-mail, a webhook, Claude Code's `SendMessage`, anything) is up to you — see "The pointer message" below.
 
@@ -119,12 +121,14 @@ When a topic ends, move its letters (or the whole topic directory) into `archive
 
 ## 中文
 
+> **来历与范围。** 本起步包是从一个仍在使用的私有信道仓库提炼出的**快照**，**不与它同步**。现行信道有意不同：信件类型与文件名用中文（`回复`、`勘误`……），本包用英文五值；读方闸门也是另一个脚本。为一方写的闸门会把另一方的每封信都报成格式错误。请把本包当起点复制，不要混用。
+
 ### 什么时候用,什么时候不用
 
 先读 [`../CROSS-MACHINE.md`](../CROSS-MACHINE.md)。简单说:
 
 - **两台机器做同一个项目** → 不建信道仓库,项目仓库本身就是信道。
-- **两个不同项目、没有共同仓库、要长期反复协商同一件事** → 用这套。通常的替代做法是人在两台机器之间复制粘贴,而那会丢信。
+- **两个不同项目、没有共同仓库、要长期反复协商同一件事,或两台机器之间需要留档、事后可复核的一次性交换** → 用这套。通常的替代做法是人在两台机器之间复制粘贴,而那会丢信。
 
 信道只负责「信」。**怎么通知对方有一封信**(聊天消息、邮件、webhook、Claude Code 的 `SendMessage`,什么都行)由你决定,见下面「指针消息」。
 

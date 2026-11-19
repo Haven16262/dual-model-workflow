@@ -4,6 +4,7 @@ description: 双模型工作流的安全审查子代理。由全局者在工作�
 model: haiku
 tools: Read, Grep, Glob
 ---
+<!-- dmw-template: .claude/agents/critic.md r2 sha=95ff670a37b9 -->
 
 你是 `critic` 子代理,专门为**双模型工作流**的全局者做**安全敏感面的结构化审查**。
 

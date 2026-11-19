@@ -2,24 +2,31 @@
 
 # Dual-Model Workflow
 
-A lightweight protocol for pairing two AI coding models — one as **Overseer**, one as **Worker** — coordinated through a few plain Markdown files. Solves single-model context exhaustion and role confusion.
+A lightweight protocol for pairing two AI coding models — one as **Overseer**, one as **Worker** — coordinated through a few plain Markdown files. It saves quota, puts a second model on review, and keeps project state in files that outlive any one session.
 
 **English · [中文](README.zh-CN.md)**
 
 > Runs on the [Claude Code](https://claude.com/claude-code) CLI — install that first; this repo does not install it. A Claude account is **optional**: either role can run on any Anthropic-compatible model endpoint. See [Prerequisites](#prerequisites).
 
-**Contents:** [The problem](#the-problem) · [Two roles](#two-roles) · [How a round works](#how-a-round-works) · [The files](#the-files) · [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Switching roles](#switching-roles) · [Advanced topics](#advanced-topics) · [License](#license)
+> **What this repo is:** a snapshot of one person's working setup, published as a showcase. It is not a maintained product, and no compatibility is promised between versions.
+>
+> **Snapshots.** Each export to this repository is one commit with an annotated tag `snapshot-YYYY-MM-DD`; `main` is simply the newest snapshot. Pin a tag if you want something that does not move. Between two snapshots, files may be renamed, split or removed, and nothing is migrated for you. The first line of each template file is a version stamp (`<!-- dmw-template … -->`) used by the author's own upgrade tool, which is not published; you can ignore it.
+
+**Contents:** [Why use it](#why-use-it) · [Two roles](#two-roles) · [How a round works](#how-a-round-works) · [The files](#the-files) · [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Switching roles](#switching-roles) · [Advanced topics](#advanced-topics) · [License](#license)
 
 ---
 
-## The problem
+## Why use it
 
-When you use one AI model for a long coding session, two things go wrong:
+Three reasons, all of which still hold today:
 
-1. **Context exhaustion** — as the conversation grows, the model loses early context, repeats mistakes, and drifts off course.
-2. **Role confusion** — you want it to make architecture decisions, it edits code details; you want it to execute, it keeps asking you for direction.
+1. **Saves quota** — a cheaper model (the Worker) does most of the reading, coding and iterating; the stronger model (the Overseer) is spent only on decisions and review.
+2. **Cross-model review** — when the two roles run on different models, the Overseer reviews work written by another model, so the review does not share the author's blind spots.
+3. **State lives in files** — decisions, tasks and handoffs are plain Markdown in the project, so a fresh session (or another machine) can pick up where the last one stopped.
 
-This workflow splits the work across **two models with separate roles**, and manages the shared state in plain files so each model only does what it's good at.
+It is one ordinary way of running several sessions together, not a framework for it.
+
+*History:* the workflow started as a fix for two problems of long single-model sessions: context exhaustion and role confusion. Newer models and Claude Code features have weakened both, so they are no longer the main reason to use it.
 
 ## Two roles
 
@@ -59,11 +66,11 @@ Messages between the two sessions only wake the other side up; every decision go
 
 The authoritative per-project file list — what each file is for, who reads it, who writes it — is the 「文件分工」 table in [`templates/WORKFLOW.md`](templates/WORKFLOW.md). This README deliberately doesn't restate the count; a copied number drifts. The ones you touch most:
 
-- **`WORKFLOW.md`** — the rules: each role's responsibilities, switch trigger conditions, and the `context.md` write formats. Both models read this on startup so behavior stays consistent.
+- **`WORKFLOW.md`** — the rules both roles share: the Worker's responsibilities, switch trigger conditions, and the `context.md` write formats. Both models read this on startup so behavior stays consistent. The Overseer-only rules (workflow modes, third-party review, phase close, handoff review) live in **`.workflow/overseer.md`**, which the Overseer reads in full. The Worker normally does not; it opens a chapter there only when a task line or a pointer in `WORKFLOW.md` names it.
 - **`CLAUDE.md`** — project-level startup instructions: every session must (1) read `WORKFLOW.md`, (2) read `context.md` (top status block first, then latest history), (3) restate "I am [role], current task is: [summary]" and begin.
 - **`context.md`** — the core. A top `## Current State` block (rewritten by the Overseer each round — the latest task list; the Worker only appends new entries to the backlog and unverified-premise lists, never overwrites it) plus an append-only history log (timestamped records of every decision and execution step).
 
-They live in every project that uses the workflow. Two optional documents sit at the repository level instead and are not part of the per-project set: [`CROSS-MACHINE.md`](CROSS-MACHINE.md) (Overseer and Worker, or two Overseers, on different machines) and [`channel-starter/`](channel-starter/) (a dedicated letter-channel repository for projects that share no repository).
+They live in every project that uses the workflow. Two optional documents sit at the repository level instead and are not part of the per-project set: [`CROSS-MACHINE.md`](CROSS-MACHINE.md) (Overseer and Worker, or two Overseers, on different machines) and [`channel-starter/`](channel-starter/) (a starter kit for a letter-channel repository between machines or projects that share no project repository; a published snapshot, not kept in sync with any live channel).
 
 ### What `context.md` looks like
 
@@ -112,6 +119,7 @@ command -v claude >/dev/null && claude --version || echo "claude not found — i
 # 1. Clone
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
+#   (optional) pin a snapshot instead of following main:  git tag --list 'snapshot-*'  then  git checkout <tag>
 
 # 2. Make templates discoverable (default location)
 mkdir -p ~/.dual-model/templates
@@ -125,7 +133,8 @@ cp -r templates/. ~/.dual-model/templates/
 #     every round / handoff; the k10-*.py files are the optional third-party-review hooks +
 #     watcher — copying them is harmless
 mkdir -p ~/.claude/scripts
-cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py ~/.claude/scripts/
+#     handoff-check.py mechanically checks the Worker's handoff block (commit sha, required fields, `rc=` in gate results) and is run by both roles
+cp scripts/security-scan.sh scripts/dual-model-mode.sh scripts/k10-*.py scripts/ctx-*.py scripts/sessions-md.py scripts/handoff-check.py ~/.claude/scripts/
 
 # 3. Export your DeepSeek key in your shell profile (NEVER commit this)
 echo 'export DEEPSEEK_API_KEY="sk-your-deepseek-key"' >> ~/.bashrc
@@ -155,6 +164,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) { claude --version } else 
 # 1. Clone
 git clone https://github.com/Haven16262/dual-model-workflow.git
 cd dual-model-workflow
+#   (optional) pin a snapshot instead of following main:  git tag --list 'snapshot-*'  then  git checkout <tag>
 
 # 2. Make templates discoverable (default location)
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.dual-model\templates" | Out-Null
@@ -174,6 +184,7 @@ Copy-Item scripts\security-scan.sh "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\k10-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\ctx-*.py "$env:USERPROFILE\.claude\scripts\"
 Copy-Item scripts\sessions-md.py "$env:USERPROFILE\.claude\scripts\"
+Copy-Item scripts\handoff-check.py "$env:USERPROFILE\.claude\scripts\"
 
 # 3. Prepare the settings file for model switching (NEVER commit the key)
 #    ~\.claude\settings.deepseek.json  — DeepSeek endpoint env + API key (Worker)
@@ -407,6 +418,7 @@ scripts/     # security-scan.sh (bash, both platforms via Git Bash)
 #              dual-model-mode.sh (workflow-mode rules, called by the launchers)
 #              ctx-size.py + ctx-pointers.py (context.md length and dangling-pointer checks, run by the Overseer each round)
 #              sessions-md.py (session registry, run at every handoff)
+#              handoff-check.py (mechanical check of the Worker's handoff block, run before every handoff and again by the Overseer)
 #              k10-watch.py / k10-stop-gate.py / k10-subagent-report.py (optional: third-party reviews, K10)
 #              tests/ (bash test_dual_model_mode.sh ; test_k10.sh ; test_security_scan.sh ; test_ctx_pointers.sh ; test_sessions_md.sh)  — Linux only; not ported to Windows
 docs/        # design records in docs/design/ (why the templates say what they say); workflow diagrams in diagrams.en.md / diagrams.md
